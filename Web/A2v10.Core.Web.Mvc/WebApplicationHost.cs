@@ -2,52 +2,15 @@
 
 using System;
 using System.Dynamic;
-using System.Threading.Tasks;
 using System.Text;
-using System.Data;
-//using System.Data.SqlClient;
 
 using Microsoft.Extensions.Configuration;
 
 using A2v10.Infrastructure;
 using A2v10.Data.Interfaces;
-using System.Reflection;
-
-//using SqlCommandType = System.Data.CommandType;
 
 namespace A2v10.Core.Web.Mvc
 {
-	public class AssemblyDescription
-	{
-		public String Name { get; private set; }
-		public String ProductName { get; private set; }
-		public String Version { get; private set; }
-		public String Copyright { get; private set; }
-		public String Build { get; private set; }
-
-		public AssemblyDescription(AssemblyName an, String productName, String copyright)
-		{
-			Name = an.Name;
-			ProductName = productName;
-			Version = String.Format("{0}.{1}.{2}", an.Version.Major, an.Version.Minor, an.Version.Build);
-			Build = an.Version.Build.ToString();
-			Copyright = copyright.Replace("(C)", "©").Replace("(c)", "©");
-		}
-	}
-
-	public class AppInfo
-	{
-		public static AssemblyDescription MainAssembly => GetDescription(Assembly.GetExecutingAssembly());
-
-		static AssemblyDescription GetDescription(Assembly a)
-		{
-			var c = a.GetCustomAttributes(typeof(AssemblyCopyrightAttribute), false)[0];
-			var n = a.GetCustomAttributes(typeof(AssemblyProductAttribute), false)[0];
-			return new AssemblyDescription(a.GetName(),
-				(n as AssemblyProductAttribute).Product,
-				(c as AssemblyCopyrightAttribute).Copyright);
-		}
-	}
 
 	public record TenantInfo : ITenantInfo
 	{
@@ -104,8 +67,6 @@ namespace A2v10.Core.Web.Mvc
 
 		public Boolean IsAdminAppPresent => false /*TODO:*/;
 
-		public String CustomSecuritySchema => throw new NotImplementedException();
-
 
 		public Int32? TenantId { get; set; }
 
@@ -115,21 +76,10 @@ namespace A2v10.Core.Web.Mvc
 		public String CatalogDataSource => IsMultiTenant ? "Catalog" : null;
 		public String TenantDataSource => String.IsNullOrEmpty(UserSegment) ? null : UserSegment;
 
-		public String AppVersion => AppInfo.MainAssembly.Version;
-		public String AppBuild => AppInfo.MainAssembly.Build;
-		public String Copyright => AppInfo.MainAssembly.Copyright;
-
 		public void CheckIsMobile(string host)
 		{
 			throw new NotImplementedException();
 		}
-
-		/*
-		public string ConnectionString(string source)
-		{
-			throw new NotImplementedException();
-		}
-		*/
 
 		public String GetAppSettings(string source)
 		{
