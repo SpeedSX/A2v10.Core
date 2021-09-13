@@ -1,5 +1,7 @@
 ﻿// Copyright © 2021 Alex Kukhtin. All rights reserved.
 
+using System.Globalization;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -10,12 +12,28 @@ using A2v10.ReportEngine.Stimulsoft;
 using A2v10.Services;
 using A2v10.ViewEngine.Xaml;
 using A2v10.Platform.Web;
-using System.Globalization;
+using A2v10.Data;
+using A2v10.Data.Interfaces;
 
 namespace Microsoft.Extensions.DependencyInjection
 {
 	public static class ServicesExtensions
 	{
+		public static IServiceCollection UseSqlServerStorage(this IServiceCollection services)
+		{
+			// Storage
+			services.AddOptions<DataConfigurationOptions>();
+
+			services.AddScoped<IDbContext, SqlDbContext>()
+			.AddSingleton<IDataConfiguration, DataConfiguration>();
+
+			services.Configure<DataConfigurationOptions>(opts =>
+			{
+				opts.ConnectionStringName = "Default";
+			});
+			return services;
+		}
+
 		public static IServiceCollection UsePlatform(this IServiceCollection services, IConfiguration configuration)
 		{
 			services.AddPlatformCore(opts =>
@@ -35,7 +53,7 @@ namespace Microsoft.Extensions.DependencyInjection
 			})
 			.AddPlatformAuthentication();
 
-			services.AddSqlServerStorage();
+			services.UseSqlServerStorage();
 
 			services.AddViewEngines(x =>
 			{
