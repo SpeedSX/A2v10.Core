@@ -2,9 +2,11 @@
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+
+using A2v10.Infrastructure;
+using A2v10.WorkflowEngine;
 
 namespace A2v10.Core.Web.Site
 {
@@ -21,6 +23,7 @@ namespace A2v10.Core.Web.Site
 		{
 			services.UsePlatform(Configuration);
 
+			/*
 			services.Configure<IdentityOptions>(opts =>
 			{
 				var pwd = opts.Password;
@@ -37,6 +40,13 @@ namespace A2v10.Core.Web.Site
 
 				var us = opts.User;
 				us.RequireUniqueEmail = false;
+			});
+			*/
+
+			services.UseWorkflowEngine();
+			services.AddInvokeTargets(a =>
+			{
+				a.RegisterEngine<WorkflowInvokeTarget>("Workflow", InvokeScope.Scoped);
 			});
 		}
 
