@@ -125,10 +125,13 @@ namespace A2v10.Services
 
 		public virtual Boolean IsDialog => false;
 
-		public Boolean Indirect { get; set; }
-		public String Target { get; set; }
-		public String TargetId { get; set; }
+		public Boolean Indirect { get; init; }
+		public String Target { get; init; }
+		public String TargetId { get; init; }
 		public ModelJsonView TargetModel { get; }
+
+		public List<String> Scripts { get; init; } 
+		public List<String> Styles { get; init; }
 
 		public String GetView(Boolean mobile)
 		{
@@ -226,6 +229,7 @@ namespace A2v10.Services
 		public String ClrType { get; set; }
 		public Boolean Async { get; set; }
 		public Boolean DebugOnly { get; set; } /*TODO: Implement me*/
+		public ExpandoObject Args { get; init; }
 
 		public override String LoadProcedure()
 		{
@@ -314,12 +318,17 @@ namespace A2v10.Services
 		public String LocalPath => _localPath;
 		public String BaseUrl => _baseUrl;
 
+		public ModelJsonView TryGetAction(String key)
+		{
+			if (Actions.TryGetValue(key ?? "index", out ModelJsonView view))
+				return view;
+			return null;
+		}
+
 		public ModelJsonView GetAction(String key)
 		{
-			key ??= "index";
-			if (Actions.TryGetValue(key, out ModelJsonView view))
-				return view;
-			throw new ModelJsonException($"Action: {key} not found");
+			var view = TryGetAction(key);
+			return view ?? throw new ModelJsonException($"Action: {key} not found");
 		}
 
 		public ModelJsonDialog GetDialog(String key)

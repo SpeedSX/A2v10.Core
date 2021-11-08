@@ -30,6 +30,12 @@ namespace A2v10.Infrastructure
 		String FileName { get; }
 	}
 
+	public interface ILayoutDescription
+	{
+		String ModelScripts { get; }
+		String ModelStyles { get; }
+	}
+
 	public interface IDataService
 	{
 		Task<IDataLoadResult> LoadAsync(UrlKind kind, String baseUrl, Action<ExpandoObject> setParams);
@@ -48,6 +54,8 @@ namespace A2v10.Infrastructure
 		Task DbRemoveAsync(String baseUrl, Object Id, String propertyName, Action<ExpandoObject> setParams);
 
 		Task<IInvokeResult> InvokeAsync(String baseUrl, String command, ExpandoObject data, Action<ExpandoObject> setParams);
+		Byte[] Html2Excel(String html);
 
+		Task<ILayoutDescription> GetLayoutDescriptionAsync(String baseUrl);
 	}
 }

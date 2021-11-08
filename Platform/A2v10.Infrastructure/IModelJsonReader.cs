@@ -1,6 +1,7 @@
 ﻿// Copyright © 2015-2021 Alex Kukhtin. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Dynamic;
 using System.Threading.Tasks;
 
@@ -43,7 +44,7 @@ namespace A2v10.Infrastructure
 		ExpandoObject CreateMergeParameters(IDataModel model, ExpandoObject prms);
 	}
 
-	public interface IModelView: IModelBase
+	public interface IModelView : IModelBase
 	{
 		Boolean Copy { get; }
 		String Template { get; }
@@ -54,6 +55,9 @@ namespace A2v10.Infrastructure
 		IModelView TargetModel { get; }
 
 		IModelMerge Merge { get; }
+
+		List<String> Scripts { get; }
+		List<String> Styles { get; }
 
 		String GetView(Boolean bMobile);
 		Boolean IsDialog { get; }
@@ -74,7 +78,10 @@ namespace A2v10.Infrastructure
 	public interface IModelCommand : IModelBase
 	{
 		IModelInvokeCommand GetCommandHandler(IServiceProvider serviceProvider);
+
 		String Target { get; }
+		String File { get; }
+		ExpandoObject Args { get; }
 	}
 
 	public interface IModelReportHandler
@@ -96,6 +103,7 @@ namespace A2v10.Infrastructure
 
 	public interface IModelJsonReader
 	{
+		Task<IModelView> TryGetViewAsync(IPlatformUrl url);
 		Task<IModelView> GetViewAsync(IPlatformUrl url);
 		Task<IModelBlob> GetBlobAsync(IPlatformUrl url, String suffix = null);
 		Task<IModelCommand> GetCommandAsync(IPlatformUrl url, String command);
