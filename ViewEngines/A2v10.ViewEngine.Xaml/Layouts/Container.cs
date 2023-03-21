@@ -1,18 +1,15 @@
 ﻿// Copyright © 2015-2021 Alex Kukhtin. All rights reserved.
 
-using System;
-using A2v10.System.Xaml;
-
 namespace A2v10.Xaml
 {
 	[ContentProperty("Children")]
 	public abstract class Container : UIElement
 	{
-		public UIElementCollection Children { get; set; } = new UIElementCollection();
+		public UIElementCollection Children { get; set; } = new();
 
-		public Object ItemsSource { get; set; }
+		public Object? ItemsSource { get; set; }
 
-		public virtual void RenderChildren(RenderContext context, Action<TagBuilder> onRenderStatic = null)
+		public virtual void RenderChildren(RenderContext context, Action<TagBuilder>? onRenderStatic = null)
 		{
 			var tml = new TagBuilder("template");
 			onRenderStatic?.Invoke(tml);
@@ -53,11 +50,11 @@ namespace A2v10.Xaml
 				c.SetParent(this);
 		}
 
-		public override void OnSetStyles()
+		public override void OnSetStyles(RootContainer root)
 		{
-			base.OnSetStyles();
+			base.OnSetStyles(root);
 			foreach (var c in Children)
-				c.OnSetStyles();
+				c.OnSetStyles(root);
 		}
 	}
 }

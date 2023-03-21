@@ -1,7 +1,5 @@
 ﻿// Copyright © 2015-2020 Alex Kukhtin. All rights reserved.
 
-using System;
-
 namespace A2v10.Xaml
 {
 	public enum RadioButtonStyle
@@ -15,7 +13,7 @@ namespace A2v10.Xaml
 		internal override String ControlType => Style == RadioButtonStyle.CheckBox ? "checkbox" : "radio";
 		internal override String InputControlType => "radio";
 
-		public Object CheckedValue { get; set; }
+		public Object? CheckedValue { get; set; }
 
 		public RadioButtonStyle Style { get; set; }
 
@@ -23,7 +21,8 @@ namespace A2v10.Xaml
 		{
 			base.MergeCheckBoxAttributes(tag, context);
 			var chv = GetBinding(nameof(CheckedValue));
-			if (chv != null) {
+			if (chv != null)
+			{
 				tag.MergeAttribute(":value", chv.GetPathFormat(context));
 			}
 			else if (CheckedValue != null)

@@ -1,8 +1,5 @@
 ﻿// Copyright © 2015-2021 Alex Kukhtin. All rights reserved.
 
-using System;
-using A2v10.System.Xaml;
-
 namespace A2v10.Xaml
 {
 	public enum SpaceMode
@@ -16,13 +13,13 @@ namespace A2v10.Xaml
 	[ContentProperty("Content")]
 	public class Span : Inline
 	{
-		public Object Content { get; set; }
+		public Object? Content { get; set; }
 		public Boolean Small { get; set; }
 		public Boolean Big { get; set; }
 		public SpaceMode Space { get; set; }
 		public UInt32 MaxChars { get; set; }
 
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			if (SkipRender(context))
 				return;

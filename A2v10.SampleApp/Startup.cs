@@ -1,29 +1,35 @@
-// Copyright © 2020-2021 Alex Kukhtin. All rights reserved.
+// Copyright © 2020-2022 Alex Kukhtin. All rights reserved.
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace A2v10.SampleApp
+using A2v10.ReportEngine.Pdf;
+
+namespace A2v10.SampleApp;
+
+public class Startup
 {
-	public class Startup
+	public Startup(IConfiguration configuration)
 	{
-		public Startup(IConfiguration configuration)
-		{
-			Configuration = configuration;
-		}
+		Configuration = configuration;
+	}
 
-		public IConfiguration Configuration { get; }
+	public IConfiguration Configuration { get; }
 
-		public void ConfigureServices(IServiceCollection services)
-		{
-			services.UsePlatform(Configuration);
-		}
+	public void ConfigureServices(IServiceCollection services)
+	{
+		services.UsePlatform(Configuration);
 
-		public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+		services.AddReportEngines(factory =>
 		{
-			app.ConfigurePlatform(env);
-		}
+			factory.RegisterEngine<PdfReportEngine>("pdf");
+		});
+	}
+
+	public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+	{
+		app.ConfigurePlatform(env);
 	}
 }

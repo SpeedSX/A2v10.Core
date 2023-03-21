@@ -1,14 +1,12 @@
 ﻿// Copyright © 2015-2018 Alex Kukhtin. All rights reserved.
 
-using System;
-
 using A2v10.Infrastructure;
 
 namespace A2v10.Xaml
 {
 	public class CardBody : Container
 	{
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			var body = new TagBuilder("div", "card-body");
 			MergeAttributes(body, context);
@@ -20,12 +18,12 @@ namespace A2v10.Xaml
 
 	public class Card : Container, ITableControl
 	{
-		public Object Header { get; set; }
-		public Object Footer { get; set; }
-		public Object Body { get; set; }
+		public Object? Header { get; set; }
+		public Object? Footer { get; set; }
+		public Object? Body { get; set; }
 
-		public Length Height { get; set; }
-		public Length Width { get; set; }
+		public Length? Height { get; set; }
+		public Length? Width { get; set; }
 
 		public BackgroundStyle Background { get; set; }
 		public ShadowStyle DropShadow { get; set; }
@@ -33,14 +31,14 @@ namespace A2v10.Xaml
 
 		public TextAlign Align { get; set; }
 
-		public Length MaxHeight { get; set; }
+		public Length? MaxHeight { get; set; }
 
-		public Popover Hint { get; set; }
+		public Popover? Hint { get; set; }
 
 		Boolean HasHeader => GetBinding(nameof(Header)) != null || Header != null;
 		Boolean HasFooter => GetBinding(nameof(Footer)) != null || Footer != null;
 
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			if (SkipRender(context))
 				return;
@@ -84,7 +82,8 @@ namespace A2v10.Xaml
 				s.MergeAttribute(":text", hb.GetPathFormat(context));
 				s.Render(context);
 			}
-			else if (Header is UIElementBase hUiElem) {
+			else if (Header is UIElementBase hUiElem)
+			{
 				hUiElem.RenderElement(context);
 			}
 			else if (Header is String hStr)

@@ -1,5 +1,4 @@
 ﻿// Copyright © 2015-2021 Alex Kukhtin. All rights reserved.
-using System;
 using A2v10.Infrastructure;
 
 namespace A2v10.Xaml
@@ -7,10 +6,10 @@ namespace A2v10.Xaml
 	public class Flex : Container
 	{
 		public Orientation Orientation { get; set; }
-		public GapSize Gap { get; set; }
+		public GapSize? Gap { get; set; }
 		public JustifyItems JustifyItems { get; set; }
 
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			if (SkipRender(context))
 				return;
@@ -30,7 +29,7 @@ namespace A2v10.Xaml
 			flex.RenderEnd(context);
 		}
 
-		public override void RenderChildren(RenderContext context, Action<TagBuilder> onRenderStatic = null)
+		public override void RenderChildren(RenderContext context, Action<TagBuilder>? onRenderStatic = null)
 		{
 			foreach (var ch in Children)
 			{

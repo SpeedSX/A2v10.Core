@@ -1,6 +1,5 @@
 ﻿// Copyright © 2019-2021 Alex Kukhtin. All rights reserved.
 
-using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
@@ -11,13 +10,15 @@ namespace A2v10.Xaml
 	[TypeConverter(typeof(AccelConverter))]
 	public class Accel : XamlElement
 	{
-		public String Key { get; set; }
+		public String? Key { get; set; }
 
 		// CASM - modifiers (control, alt, shift, meta)
 		// Ctrl + A => C___:KeyA
 		public String GetKeyCode()
 		{
-			if (Key.Contains("+"))
+			if (Key == null)
+				return String.Empty;
+			if (Key.Contains('+'))
 			{
 				var modifiers = new StringBuilder("____:");
 				var x = Key.Split('+');
@@ -65,7 +66,7 @@ namespace A2v10.Xaml
 
 	public class AccelConverter : TypeConverter
 	{
-		public override Boolean CanConvertFrom(ITypeDescriptorContext context, Type sourceType)
+		public override Boolean CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
 		{
 			if (sourceType == typeof(String))
 				return true;
@@ -74,12 +75,12 @@ namespace A2v10.Xaml
 			return false;
 		}
 
-		public override Object ConvertFrom(ITypeDescriptorContext context, CultureInfo culture, Object value)
+		public override Object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, Object value)
 		{
 			if (value == null)
 				return null;
 			if (value is String)
-				return new Accel() { Key = value.ToString() };
+				return new Accel() { Key = value.ToString()! };
 			else if (value is Accel)
 				return value as Accel;
 			throw new XamlException($"Invalid Accel value '{value}'");
@@ -89,12 +90,12 @@ namespace A2v10.Xaml
 
 	public class AccelCommand : XamlElement
 	{
-		public Accel Accel { get; set; }
-		public Command Command { get; set; }
+		public Accel? Accel { get; set; }
+		public Command? Command { get; set; }
 
 		public void RenderElement(RenderContext context)
 		{
-			if (String.IsNullOrEmpty(Accel.Key))
+			if (Accel == null || String.IsNullOrEmpty(Accel.Key))
 				return;
 			var cmd = GetBindingCommand(nameof(Command));
 			if (cmd == null)
@@ -114,14 +115,14 @@ namespace A2v10.Xaml
 
 	public class AccelCommandCollectionConverter : TypeConverter
 	{
-		public override Boolean CanConvertFrom(ITypeDescriptorContext context, Type sourceType)
+		public override Boolean CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
 		{
 			if (sourceType == typeof(AccelCommand))
 				return true;
 			return base.CanConvertFrom(context, sourceType);
 		}
 
-		public override Object ConvertFrom(ITypeDescriptorContext context, CultureInfo culture, Object value)
+		public override Object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, Object value)
 		{
 			if (value == null)
 				return null;

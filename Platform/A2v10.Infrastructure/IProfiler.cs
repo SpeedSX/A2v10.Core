@@ -16,7 +16,7 @@ namespace A2v10.Infrastructure
 
 	public interface IProfileRequest
 	{
-		IDisposable Start(ProfileAction kind, String description);
+		IDisposable? Start(ProfileAction kind, String description);
 		void Stop();
 	}
 
@@ -24,10 +24,10 @@ namespace A2v10.Infrastructure
 	{
 		Boolean Enabled { get; set; }
 
-		IProfileRequest BeginRequest(String address, String session);
+		IProfileRequest? BeginRequest(String address, String? session);
 		IProfileRequest CurrentRequest { get; }
-		void EndRequest(IProfileRequest request);
+		void EndRequest(IProfileRequest? request);
 
-		String GetJson();
+		String? GetJson();
 	}
 }

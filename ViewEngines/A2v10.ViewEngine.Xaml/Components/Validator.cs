@@ -1,11 +1,9 @@
 ﻿// Copyright © 2015-2019 Alex Kukhtin. All rights reserved.
 
-using System;
+using A2v10.Infrastructure;
 using System.ComponentModel;
 using System.Globalization;
 using System.Text;
-
-using A2v10.Infrastructure;
 
 namespace A2v10.Xaml
 {
@@ -21,7 +19,7 @@ namespace A2v10.Xaml
 	[TypeConverter(typeof(ValidatorConverter))]
 	public class Validator : XamlElement
 	{
-		public Length Width { get; set; }
+		public Length? Width { get; set; }
 		public ValidatorPlacement? Placement { get; set; }
 
 		public static Validator FromString(String value)
@@ -48,7 +46,7 @@ namespace A2v10.Xaml
 		static ValidatorPlacement PlacementFromString(String val)
 		{
 			if (Enum.TryParse<ValidatorPlacement>(val, out ValidatorPlacement pl))
-				return pl ;
+				return pl;
 			else
 				throw new XamlException($"Invalid ValidatorPlacement value '{val}'");
 
@@ -74,7 +72,7 @@ namespace A2v10.Xaml
 
 	public class ValidatorConverter : TypeConverter
 	{
-		public override Boolean CanConvertFrom(ITypeDescriptorContext context, Type sourceType)
+		public override Boolean CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
 		{
 			if (sourceType == typeof(String))
 				return true;
@@ -83,13 +81,13 @@ namespace A2v10.Xaml
 			return base.CanConvertFrom(context, sourceType);
 		}
 
-		public override Object ConvertFrom(ITypeDescriptorContext context, CultureInfo culture, Object value)
+		public override Object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, Object value)
 		{
 			if (value == null)
 				return null;
-			if (value is String)
+			if (value is String strVal)
 			{
-				return Validator.FromString(value.ToString());
+				return Validator.FromString(strVal);
 			}
 			else if (value is Validator)
 			{

@@ -1,6 +1,6 @@
 ﻿{
 	"$schema": "http://json-schema.org/draft-04/schema",
-	"$version": "10.0.7805",
+	"$version": "10.0.7922",
 	"title": "JSON Schema for model.json",
 	"type": "object",
 
@@ -23,6 +23,7 @@
 		},
 		"model": { "type": "string" },
 		"schema": { "type": "string" },
+		"module": { "type": "string" },
 		"allowAddress": { "type": "string" },
 		"allowOrigin": { "type,": "string" },
 		"actions": {
@@ -43,7 +44,8 @@
 						"commandTimeout": { "type": "number" },
 						"indirect": { "type": "boolean" },
 						"target": { "type": "string" },
-						"targetId": {"type": "string" },
+						"targetId": { "type": "string" },
+						"skipDataStack": { "type": "boolean" },
 						"merge": {
 							"type": "object",
 							"properties": {
@@ -88,7 +90,7 @@
 						},
 						"styles": {
 							"type": "array",
-							"items": {"type": "string"}
+							"items": { "type": "string" }
 						}
 					},
 					"additionalProperties": false
@@ -186,7 +188,10 @@
 						"model": { "type": "string" },
 						"command": { "type": "string" },
 						"procedure": { "type": "string" },
-						"target": { "type": "string", "pattern": "^(\\w+)\\.(\\w+)$" },
+						"target": {
+							"type": "string",
+							"pattern": "^(\\w+)\\.(\\w+)$"
+						},
 						"checkTypes": { "type": "string" },
 						"processDbEvents": { "type": "boolean" },
 						"commandTimeout": { "type": "number" },
@@ -230,9 +235,15 @@
 						"name": { "type": "string" },
 						"report": { "type": "string" },
 						"checkTypes": { "type": "string" },
+						"encoding": { "type": "string" },
+						"commandTimeout": { "type": "number" },
+						"xmlSchemas": {
+							"type": "array",
+							"items": { "type": "string" }
+						},
 						"type": {
 							"type": "string",
-							"enum": [ "stimulsoft", "xml", "json" ]
+							"enum": [ "stimulsoft", "xml", "json", "pdf" ]
 						},
 						"permissions": {
 							"$ref": "#/definitions/permissions"
@@ -250,13 +261,14 @@
 					"properties": {
 						"model": { "type": "string" },
 						"schema": { "type": "string" },
+						"source": { "type": "string" },
 						"type": {
 							"type": "string",
-							"enum": [ "parse", "clr", "sql", "azureBlob" ]
+							"enum": [ "parse", "clr", "sql", "azureBlob", "json" ]
 						},
 						"parse": {
 							"type": "string",
-							"enum": [ "excel", "xlsx", "csv", "dbf", "xml", "auto" ]
+							"enum": [ "excel", "xlsx", "csv", "dbf", "xml", "auto", "json" ]
 						},
 						"commandTimeout": { "type": "number" },
 						"async": { "type": "boolean" },
@@ -266,6 +278,8 @@
 						},
 						"locale": { "type": "string" },
 						"container": { "type": "string" },
+						"outputFileName": { "type": "string" },
+						"zip": { "type": "boolean" },
 						"azureSource": { "type": "string" },
 						"imageCompress": {
 							"type": "object",

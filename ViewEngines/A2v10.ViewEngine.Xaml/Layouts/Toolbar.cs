@@ -1,9 +1,8 @@
 ﻿// Copyright © 2015-2021 Alex Kukhtin. All rights reserved.
 
-using System;
-using System.Collections.Generic;
 using A2v10.Infrastructure;
-using A2v10.System.Xaml;
+using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Generic;
 
 namespace A2v10.Xaml
 {
@@ -22,6 +21,14 @@ namespace A2v10.Xaml
 		BottomShadow
 	}
 
+	public class ToolbarAligner : UIElementBase
+	{
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
+		{
+			new TagBuilder("div", "aligner").Render(context);
+		}
+	}
+
 	[AttachedProperties("Align")]
 	public class Toolbar : Container
 	{
@@ -37,7 +44,7 @@ namespace A2v10.Xaml
 
 		public Toolbar(IServiceProvider serviceProvider)
 		{
-			_attachedPropertyManager = serviceProvider.GetService(typeof(IAttachedPropertyManager)) as IAttachedPropertyManager;
+			_attachedPropertyManager = serviceProvider.GetRequiredService<IAttachedPropertyManager>();
 		}
 
 		#region Attached Properties
@@ -53,7 +60,7 @@ namespace A2v10.Xaml
 		public ToolbarBorderStyle Border { get; set; }
 		public AlignItems AlignItems { get; set; }
 
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			if (SkipRender(context))
 				return;
@@ -71,7 +78,7 @@ namespace A2v10.Xaml
 			tb.RenderEnd(context);
 		}
 
-		public override void RenderChildren(RenderContext context, Action<TagBuilder> onRenderStatic = null)
+		public override void RenderChildren(RenderContext context, Action<TagBuilder>? onRenderStatic = null)
 		{
 			var rightList = new List<UIElementBase>();
 			Boolean bFirst = true;

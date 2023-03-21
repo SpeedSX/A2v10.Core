@@ -1,17 +1,15 @@
 ﻿// Copyright © 2015-2020 Alex Kukhtin. All rights reserved.
 
-using System;
-
 namespace A2v10.Xaml
 {
 	public class SheetPage : Container, IHasWrapper
 	{
 		public PageOrientation Orientation { get; set; }
-		public Size PageSize { get; set; }
+		public Size? PageSize { get; set; }
 
-		public PrintPage PrintPage { get; set; }
+		public PrintPage? PrintPage { get; set; }
 
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			var wrap = new TagBuilder("div", "sheet-page-wrapper", IsInGrid);
 			MergeAttributes(wrap, context);

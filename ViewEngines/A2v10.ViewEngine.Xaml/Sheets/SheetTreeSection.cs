@@ -1,12 +1,10 @@
 ﻿// Copyright © 2015-2017 Alex Kukhtin. All rights reserved.
 
-using System;
-
 namespace A2v10.Xaml
 {
 	public class SheetTreeSection : SheetSection
 	{
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			if (SkipRender(context))
 				return;
@@ -23,7 +21,7 @@ namespace A2v10.Xaml
 			var tml = new TagBuilder("template");
 			tml.MergeAttribute("slot-scope", "row");
 			tml.RenderStart(context);
-			using (var scope = new ScopeContext(context, "row.item", isBind.Path))
+			using (var scope = new ScopeContext(context, "row.item", isBind?.Path))
 			{
 				foreach (var r in Children)
 					r.RenderElement(context, (tr) => tr.MergeAttribute(":class", "row.rowCssClass()"));

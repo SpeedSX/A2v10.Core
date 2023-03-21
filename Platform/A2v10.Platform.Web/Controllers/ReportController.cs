@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2021 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
 
 using System;
 using System.Threading.Tasks;
@@ -10,72 +10,96 @@ using Microsoft.AspNetCore.Mvc;
 
 using A2v10.Infrastructure;
 
-namespace A2v10.Platform.Web.Controllers
+namespace A2v10.Platform.Web.Controllers;
+
+
+public class RenderReportResult
 {
-
-	[Route("report/[action]/{Id}")]
-	[ExecutingFilter]
-	[Authorize]
-	[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-	public class ReportController : BaseController
+	public IActionResult ActionResult { get; }
+	public String ContentType { get; }
+	public String FileName { get; }
+	public RenderReportResult(IActionResult result, String contentType, String fileName)
 	{
-		private readonly IReportService _reportService;
+		ActionResult = result;
+		ContentType = contentType;
+		FileName = fileName;
+	}
+}
 
-		public ReportController(IApplicationHost host,
-			ILocalizer localizer, ICurrentUser currentUser, IProfiler profiler, IReportService reportService)
-			: base(host, localizer, currentUser, profiler)
+
+[Route("report/[action]/{Id}")]
+[ExecutingFilter]
+[Authorize]
+[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+public class ReportController : BaseController
+{
+	private readonly IReportService _reportService;
+
+	public ReportController(IApplicationHost host,
+		ILocalizer localizer, ICurrentUser currentUser, IProfiler profiler, IReportService reportService)
+		: base(host, localizer, currentUser, profiler)
+	{
+		_reportService = reportService;
+	}
+
+
+	[HttpGet]
+	public async Task<IActionResult> Show(String Id, String Base, String Rep, String format = "pdf")
+	{
+		var res = await Render(Id, Base, Rep, format);
+		Response.ContentType = res.ContentType;
+		return res.ActionResult;
+	}
+
+	[HttpGet]
+	public Task<IActionResult> Export(String Id, String Base, String Rep, String format = "pdf")
+	{
+		return TryCatch(async () =>
 		{
-			_reportService = reportService;
-		}
 
+			var res = await Render(Id, Base, Rep, format);
+			Response.ContentType = res.ContentType;
 
-		[HttpGet]
-		public Task<IActionResult> Export(String Id, String Base, String Rep, String format = "pdf")
+			var cdh = new ContentDispositionHeaderValue("attachment")
+			{
+				FileNameStar = Localize(res.FileName)
+			};
+			Response.Headers.Add("Content-Disposition", cdh.ToString());
+			return res.ActionResult;
+		});
+	}
+
+	[HttpGet]
+	public Task<IActionResult> Print(String Id, String Base, String Rep)
+	{
+		return TryCatch(async () =>
 		{
-			return TryCatch(async () =>
-			{
-				var path = Path.Combine(Base, Rep, Id);
-				var fmt = Enum.Parse<ExportReportFormat>(format, ignoreCase: true);
-				var result = await _reportService.ExportAsync(path + Request.QueryString, fmt, (exp) => {
-					exp.SetNotNull("Id", Id);
-					SetSqlQueryParams(exp);
-				});
+			return (await Render(Id, Base, Rep, "pdf")).ActionResult;
+		});
+	}
 
-				var res = new WebBinaryActionResult(result.Body, result.ContentType);
-				Response.ContentType = result.ContentType;
-
-				var cdh = new ContentDispositionHeaderValue("attachment")
-				{
-					FileNameStar = Localize(result.FileName)
-				};
-				return res;
-			});
-		}
-
-		[HttpGet]
-		public Task<IActionResult> Print(String Id, String Base, String Rep)
+	private async Task<IActionResult> TryCatch(Func<Task<IActionResult>> action)
+	{
+		try
 		{
-			return TryCatch(async () =>
-			{
-				var path = Path.Combine(Base, Rep, Id);
-				var result = await _reportService.ExportAsync(path + Request.QueryString, ExportReportFormat.Pdf, (exp) => {
-					exp.SetNotNull("Id", Id);
-					SetSqlQueryParams(exp);
-				});
-				return new WebBinaryActionResult(result.Body, result.ContentType);
-			});
+			return await action();
 		}
-
-		private async Task<IActionResult> TryCatch(Func<Task<IActionResult>> action)
+		catch (Exception ex)
 		{
-			try
-			{
-				return await action();
-			}
-			catch (Exception ex)
-			{
-				return WriteHtmlException(ex);
-			}
+			return WriteHtmlException(ex);
 		}
+	}
+
+	async Task<RenderReportResult> Render(String Id, String Base, String Rep, String format)
+	{
+		var path = Path.Combine(Base, Rep, Id);
+		var fmt = Enum.Parse<ExportReportFormat>(format, ignoreCase: true);
+		var result = await _reportService.ExportAsync(path + Request.QueryString, fmt, (exp) => {
+			exp.SetNotNull("Id", Id);
+			SetSqlQueryParams(exp);
+		});
+
+		var res = new WebBinaryActionResult(result.Body, result.ContentType);
+		return new RenderReportResult(res, result.ContentType, result.FileName ?? Rep);
 	}
 }

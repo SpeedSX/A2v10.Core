@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2021 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
 
 using System;
 using System.Threading.Tasks;
@@ -10,117 +10,183 @@ using Microsoft.AspNetCore.Mvc;
 
 using A2v10.Data.Interfaces;
 using A2v10.Infrastructure;
+using System.Threading;
+using System.Security;
 
-namespace A2v10.Web.Identity.UI
+namespace A2v10.Web.Identity.UI;
+
+[Route("account/[action]")]
+[ApiExplorerSettings(IgnoreApi = true)]
+public class AccountController : Controller
 {
-	[Route("account/[action]")]
-	[ApiExplorerSettings(IgnoreApi = true)]
-	public class AccountController : Controller
+	private readonly SignInManager<AppUser<Int64>> _signInManager;
+	private readonly UserManager<AppUser<Int64>> _userManager;
+	private readonly AppUserStore<Int64> _userStore;
+	private readonly IAntiforgery _antiforgery;
+	private readonly IDbContext _dbContext;
+	private readonly IApplicationHost _host;
+	private readonly IApplicationTheme _appTheme;
+
+	public AccountController(SignInManager<AppUser<Int64>> signInManager, UserManager<AppUser<Int64>> userManager, AppUserStore<Int64> userStore, IAntiforgery antiforgery, IApplicationHost host, IDbContext dbContext, IApplicationTheme appTheme)
 	{
-		private readonly SignInManager<AppUser> _signInManager;
-		private readonly UserManager<AppUser> _userManager;
-		private readonly IAntiforgery _antiforgery;
-		private readonly IDbContext _dbContext;
-		private readonly IApplicationHost _host;
+		_signInManager = signInManager;
+		_userManager = userManager;
+		_antiforgery = antiforgery;
+		_userStore = userStore;
+		_dbContext = dbContext;
+		_host = host;
+		_appTheme = appTheme;
+	}
 
-		public AccountController(SignInManager<AppUser> signInManager, UserManager<AppUser> userManager, IAntiforgery antiforgery, IApplicationHost host, IDbContext dbContext)
+	void RemoveAllCookies()
+	{
+		Response.Cookies.Delete(CookieNames.Application.Profile);
+		Response.Cookies.Delete(CookieNames.Identity.State);
+	}
+
+	[AllowAnonymous]
+	[HttpGet]
+	public async Task<IActionResult> Login(String returnUrl)
+	{
+		RemoveAllCookies();
+		var m = new LoginViewModel()
 		{
-			_signInManager = signInManager;
-			_userManager = userManager;
-			_antiforgery = antiforgery;
-			_dbContext = dbContext;
-			_host = host;
+			Title = await _dbContext.LoadAsync<AppTitleModel>(_host.CatalogDataSource, "a2sys.[AppTitle.Load]"),
+			Theme = _appTheme.MakeTheme(),
+			RequestToken = _antiforgery.GetAndStoreTokens(HttpContext).RequestToken
+		};
+		TempData["ReturnUrl"] = returnUrl;
+		return View(m);
+	}
 
-		}
-
-		void RemoveAllCookies()
+	[AllowAnonymous]
+	[HttpPost]
+	public async Task<IActionResult> Login([FromForm] LoginViewModel model)
+	{
+		var isValid = await _antiforgery.IsRequestValidAsync(HttpContext);
+		//_antiforgery.ValidateRequestAsync
+		var result = await _signInManager.PasswordSignInAsync(model.Login, model.Password, model.IsPersistent, lockoutOnFailure: true);
+		if (result.Succeeded)
 		{
-			Response.Cookies.Delete(CookieNames.Application.Profile);
-			Response.Cookies.Delete(CookieNames.Identity.State);
+			/* refresh claims!
+			var user = await _userManager.FindByNameAsync(model.Login);
+			await _userManager.AddClaimAsync(user, new System.Security.Claims.Claim("Organization", "234563"));
+			// sign in again!
+			await _signInManager.SignInAsync(user);
+			*/
+			var returnUrl = (TempData["ReturnUrl"] ?? "/").ToString()!.ToLowerInvariant();
+			if (returnUrl.StartsWith("/account"))
+				returnUrl = "/";
+			return LocalRedirect(returnUrl);
 		}
+		throw new InvalidOperationException("Invalid login");
+	}
 
-		[AllowAnonymous]
-		[HttpGet]
-		public async Task<IActionResult> Login(String returnUrl)
+
+	[HttpGet]
+	[AllowAnonymous]
+	public async Task<IActionResult> Register()
+	{
+		RemoveAllCookies();
+		var m = new RegisterViewModel()
 		{
-			RemoveAllCookies();
-			var m = new LoginViewModel()
-			{
-				Title = await _dbContext.LoadAsync<AppTitleModel>(_host.CatalogDataSource, "a2ui.[AppTitle.Load]")
-			};
-			m.RequestToken = _antiforgery.GetAndStoreTokens(HttpContext).RequestToken;
-			TempData["ReturnUrl"] = returnUrl;
-			return View(m);
-		}
+			Title = await _dbContext.LoadAsync<AppTitleModel>(_host.CatalogDataSource, "a2sys.[AppTitle.Load]"),
+			Theme = _appTheme.MakeTheme(),
+			RequestToken = _antiforgery.GetAndStoreTokens(HttpContext).RequestToken
+		};
+		return View(m);
+	}
 
-		[AllowAnonymous]
-		[HttpPost]
-		public async Task<IActionResult> Login([FromForm] LoginViewModel model)
+	[AllowAnonymous]
+	[HttpPost]
+	//[AjaxOnly]
+	public async Task<IActionResult> Register([FromForm] RegisterViewModel model)
+	{
+		try
 		{
 			var isValid = await _antiforgery.IsRequestValidAsync(HttpContext);
-			//_antiforgery.ValidateRequestAsync
-			var result = await _signInManager.PasswordSignInAsync(model.Login, model.Password, model.IsPersistent, lockoutOnFailure: true);
+			var user = new AppUser<Int64>()
+			{
+				UserName = model.Login,
+				PhoneNumber = Guid.NewGuid().ToString(),
+			};
+			var result = await _userManager.CreateAsync(user, model.Password);
 			if (result.Succeeded)
 			{
-				var returnUrl = (TempData["ReturnUrl"] ?? "/").ToString().ToLowerInvariant();
-				if (returnUrl.StartsWith("/account"))
-					returnUrl = "/";
-				return LocalRedirect(returnUrl);
+				var token = await _userManager.GenerateTwoFactorTokenAsync(user, TokenOptions.DefaultPhoneProvider);
+				var user2 = await _userManager.FindByNameAsync(user.UserName);
+				var verified = await _userManager.VerifyTwoFactorTokenAsync(user2, TokenOptions.DefaultPhoneProvider, token);
+				await _userStore.SetPhoneNumberConfirmedAsync(user, true, new CancellationToken());
+				return Redirect("/");
 			}
-			throw new InvalidOperationException("Invalid login");
+			return Redirect("/account/register");
 		}
-
-
-		[HttpGet]
-		[AllowAnonymous]
-		public async Task<IActionResult> Register()
+		catch (Exception ex)
 		{
-			RemoveAllCookies();
-			var m = new RegisterViewModel()
-			{
-				Title = await _dbContext.LoadAsync<AppTitleModel>(_host.CatalogDataSource, "a2ui.[AppTitle.Load]")
-			};
-			m.RequestToken = _antiforgery.GetAndStoreTokens(HttpContext).RequestToken;
-			return View(m);
+			return new EmptyResult();
 		}
+	}
 
-		[AllowAnonymous]
-		[HttpPost]
-		public async Task<IActionResult> Register([FromForm] RegisterViewModel model)
+	[HttpGet]
+	[HttpPost]
+	public async Task<IActionResult> Logout()
+	{
+		await _signInManager.SignOutAsync();
+		//HttpContext.Session.Clear(); ???
+		RemoveAllCookies(); // TODO:
+		return LocalRedirect("/");
+	}
+
+	[HttpGet]
+	[HttpPost]
+	public Task<IActionResult> Logoff()
+	{
+		return Logout();
+	}
+
+	[HttpPost]
+	public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordViewModel model)
+	{
+		try
 		{
-			try
+			if (User.Identity == null)
+				throw new SecurityException("User not found");
+
+			//if (User.Identity.IsUserOpenId())
+			//throw new SecurityException("Invalid User type (openId?)");
+
+			var user = await _userManager.FindByIdAsync(User.Identity.Name) 
+				?? throw new SecurityException("User not found");
+
+			//if (!user.ChangePasswordEnabled)
+			//throw new SecurityException("Change password not allowed");
+
+			var ir = await _userManager.ChangePasswordAsync(user, model.OldPassword, model.NewPassword);
+			if (ir.Succeeded)
 			{
-				var isValid = await _antiforgery.IsRequestValidAsync(HttpContext);
-				var user = new AppUser()
+				await _userManager.UpdateAsync(user);
+				return Json(new JsonResponse()
 				{
-					UserName = model.Login,
-				};
-				var result = await _userManager.CreateAsync(user, model.Password);
-				if (result.Succeeded)
-					return Redirect("/");
-				return Redirect("/account/register");
-			} 
-			catch (Exception)
+					Success = true
+				});
+			}
+			else
 			{
-				return new EmptyResult();
+				return Json(new JsonResponse()
+				{
+					Success = false,
+					Message = String.Join(", ", ir.Errors)
+				});
 			}
 		}
-
-		[HttpGet]
-		[HttpPost]
-		public async Task<IActionResult> Logout()
+		catch (Exception ex)
 		{
-			await _signInManager.SignOutAsync();
-			//HttpContext.Session.Clear(); ???
-			RemoveAllCookies(); // TODO:
-			return LocalRedirect("/");
-		}
-
-		[HttpGet]
-		[HttpPost]
-		public Task<IActionResult> Logoff()
-		{
-			return Logout();
+			return Json(new JsonResponse()
+			{
+				Success = false,
+				Message = ex.Message
+			});
 		}
 	}
 }
+

@@ -1,8 +1,8 @@
 ﻿/*
-Copyright © 2020-2021 Alex Kukhtin
+Copyright © 2020-2022 Alex Kukhtin
 
-Last updated : 21 sep 2021
-module version : 8033
+Last updated : 09 jun 2022
+module version : 8091
 */
 ------------------------------------------------
 set nocount on;
@@ -11,6 +11,37 @@ if not exists(select * from INFORMATION_SCHEMA.SCHEMATA where SCHEMA_NAME=N'a2wf
 go
 ------------------------------------------------
 grant execute on schema ::a2wf to public;
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2wf' and TABLE_NAME=N'Versions')
+create table a2wf.[Versions]
+(
+	[Module] nvarchar(32) not null,
+	[Version] int not null,
+	constraint PK_Versions primary key clustered (Module)
+);
+go
+------------------------------------------------
+begin
+	set nocount on;
+	declare @version int;
+	set @version = 8091;
+	if exists(select * from a2wf.Versions where Module = N'main')
+		update a2wf.Versions set [Version] = @version where Module = N'main';
+	else
+		insert into a2wf.Versions (Module, [Version]) values (N'main', @version);
+end
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2wf' and TABLE_NAME=N'CurrentDate')
+create table a2wf.[CurrentDate]
+(
+	[Date] date null
+);
+go
+------------------------------------------------
+if not exists(select * from a2wf.CurrentDate)
+	insert into a2wf.CurrentDate ([Date]) values (null);
 go
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2wf' and TABLE_NAME=N'Catalog')
@@ -22,7 +53,7 @@ begin
 		[Body] nvarchar(max) null,
 		[Thumb] varbinary(max) null,
 		ThumbFormat nvarchar(32) null,
-		[Hash] nvarchar(255) null,
+		[Hash] varbinary(64) null,
 		DateCreated datetime not null constraint DF_Catalog_DateCreated default(getutcdate()),
 		constraint PK_Catalog primary key clustered (Id)
 	);
@@ -37,7 +68,7 @@ begin
 		[Version] int not null,
 		[Format] nvarchar(32) not null,
 		[Text] nvarchar(max) null,
-		[Hash] nvarchar(255) null,
+		[Hash] varbinary(64) null,
 		DateCreated datetime not null constraint DF_Workflows_DateCreated default(getutcdate()),
 		constraint PK_Workflows primary key clustered (Id, [Version]) with (fillfactor = 70)
 	);
@@ -60,11 +91,16 @@ begin
 		DateModified datetime not null constraint DF_Workflows_Modified default(getutcdate()),
 		Lock uniqueidentifier null,
 		LockDate datetime null,
+		CorrelationId nvarchar(255) null,
 		constraint FK_Instances_WorkflowId_Workflows foreign key (WorkflowId, [Version]) 
 			references a2wf.Workflows(Id, [Version])
 	);
 	create unique index IDX_Instances_WorkflowId_Id on a2wf.Instances (WorkflowId, Id) with (fillfactor = 70);
 end
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=N'a2wf' and TABLE_NAME=N'Instances' and COLUMN_NAME=N'CorrelationId')
+	alter table a2wf.Instances add CorrelationId nvarchar(255) null;
 go
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2wf' and TABLE_NAME=N'InstanceVariablesInt')
@@ -163,24 +199,48 @@ begin
 end
 go
 ------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2wf' and TABLE_NAME=N'AutoStart')
+create table a2wf.[AutoStart]
+(
+	[Id] bigint identity(100, 1) not null
+		constraint PK_AutoStart primary key clustered,
+	[WorkflowId] nvarchar(255) not null,
+	[Version] int not null
+		constraint DF_AutoStart_Version default(0),
+	Params nvarchar(max) null,
+	StartAt datetime null,
+	Lock uniqueidentifier null,
+	DateCreated datetime not null constraint DF_AutoStart_DateCreated default(getutcdate()),
+	InstanceId uniqueidentifier null,
+	DateStarted datetime null
+);
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=N'a2wf' and TABLE_NAME=N'AutoStart' and COLUMN_NAME=N'StartAt')
+	alter table a2wf.AutoStart add StartAt datetime null;
+go
+------------------------------------------------
 create or alter procedure a2wf.[Catalog.Save]
 @UserId bigint = null,
 @Id nvarchar(255),
 @Body nvarchar(max),
-@Format nvarchar(32),
-@Hash nvarchar(255)
+@Format nvarchar(32)
 as
 begin
 	set nocount on;
 	set transaction isolation level read committed;
-	declare @savedHash nvarchar(255);
+
+	declare @savedHash varbinary(64);
+	declare @newHash varbinary(64);
+
 	begin tran;
-		select @savedHash = [Hash] from a2wf.[Catalog] where Id=@Id;
+		select @savedHash = hashbytes(N'SHA2_256', Body) from a2wf.[Catalog] where Id=@Id;
+		select @newHash = hashbytes(N'SHA2_256', @Body);
 		if @savedHash is null
 			insert into a2wf.[Catalog] (Id, [Format], Body, [Hash]) 
-			values (@Id, @Format, @Body, @Hash)
-		else if @savedHash <> @Hash
-			update a2wf.[Catalog] set Body = @Body, [Hash]=@Hash where Id=@Id;
+			values (@Id, @Format, @Body, @newHash)
+		else if @savedHash <> @newHash
+			update a2wf.[Catalog] set Body = @Body, [Hash]=@newHash where Id=@Id;
 	commit tran;
 end
 go
@@ -193,7 +253,7 @@ begin
 	set nocount on;
 	set transaction isolation level read committed;
 
-	declare @hash nvarchar(255);
+	declare @hash varbinary(64);
 	declare @version int;
 	begin tran;
 		select top(1) @hash = [Hash], @version=[Version] 
@@ -215,6 +275,19 @@ begin
 			select Id, [Version] from @retval;
 		end
 	commit tran;
+end
+go
+------------------------------------------------
+create or alter procedure a2wf.[Catalog.SaveAndPublish]
+@Id nvarchar(255),
+@Body nvarchar(max),
+@Format nvarchar(32)
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+	exec a2wf.[Catalog.Save] null, @Id=@Id, @Body=@Body, @Format=@Format;
+	exec a2wf.[Catalog.Publish] null, @Id = @Id;
 end
 go
 ------------------------------------------------
@@ -248,10 +321,45 @@ begin
 	output inserted.Id into @inst(Id)
 	where Id=@Id and Lock is null;
 
-	select [Instance!TInstance!Object] = null, [Id!!Id] = i.Id, [WorkflowId], [Version], [State], 
-		ExecutionStatus, Lock
+	select i.Id, [WorkflowId], [Version], [State], ExecutionStatus, Lock, Parent, CorrelationId
 	from @inst t inner join a2wf.Instances i on t.Id = i.Id
-	where t.Id=@Id;
+	where t.Id = @Id;
+end
+go
+------------------------------------------------
+create or alter procedure a2wf.[Instance.LoadRaw]
+@UserId bigint = null,
+@Id uniqueidentifier
+as
+begin
+	set nocount on;
+	set transaction isolation level read uncommitted;
+
+	declare @inst table(Id uniqueidentifier);
+
+	select i.Id, [WorkflowId], [Version], [State], ExecutionStatus, Lock, Parent, CorrelationId
+	from a2wf.Instances i
+	where i.Id = @Id;
+end
+go
+------------------------------------------------
+create or alter procedure a2wf.[Instance.LoadBookmark]
+@UserId bigint = null,
+@Bookmark nvarchar(255)
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+
+	declare @inst table(Id uniqueidentifier);
+
+	update top(1) a2wf.Instances set Lock=newid(), LockDate = getutcdate()
+	output inserted.Id into @inst(Id)
+	from a2wf.Instances i inner join a2wf.InstanceBookmarks b on i.Id = b.InstanceId and i.WorkflowId = b.WorkflowId
+	where b.Bookmark=@Bookmark and Lock is null;
+
+	select i.Id, [WorkflowId], [Version], [State], ExecutionStatus, Lock, Parent, CorrelationId
+	from @inst t inner join a2wf.Instances i on t.Id = i.Id;
 end
 go
 ------------------------------------------------
@@ -261,14 +369,15 @@ create or alter procedure a2wf.[Instance.Create]
 @Parent uniqueidentifier,
 @Version int = 0,
 @WorkflowId nvarchar(255),
-@ExecutionStatus nvarchar(255)
+@ExecutionStatus nvarchar(255),
+@CorrelationId nvarchar(255) = null
 as
 begin
 	set nocount on;
 	set transaction isolation level read committed;
 	set xact_abort on;
-	insert into a2wf.Instances(Id, Parent, WorkflowId, [Version], ExecutionStatus)
-	values (@Id, @Parent, @WorkflowId, @Version, @ExecutionStatus);
+	insert into a2wf.Instances(Id, Parent, WorkflowId, [Version], ExecutionStatus, CorrelationId)
+	values (@Id, @Parent, @WorkflowId, @Version, @ExecutionStatus, @CorrelationId);
 end
 go
 ------------------------------------------------
@@ -286,6 +395,7 @@ create type a2wf.[Instance.TableType] as table
 	WorkflowId nvarchar(255),
 	[ExecutionStatus] nvarchar(255) null,
 	Lock uniqueidentifier,
+	CorrelationId nvarchar(255),
 	[State] nvarchar(max)
 )
 go
@@ -418,19 +528,13 @@ begin
 	set transaction isolation level read committed;
 	set xact_abort on;
 
-	/*
-	declare @xml nvarchar(max);
-	set @xml = (select * from @TrackRecords for xml auto);
-	throw 60000, @xml, 0;
-	*/
-
 	begin tran;
 	
 	declare @defuid uniqueidentifier;
 	set @defuid = newid();
 	declare @rtable table (id uniqueidentifier);
 	with ti as (
-		select t.Id, t.[State], t.DateModified, t.ExecutionStatus, t.Lock, t.LockDate
+		select t.Id, t.[State], t.DateModified, t.ExecutionStatus, t.Lock, t.LockDate, t.CorrelationId
 		from a2wf.Instances t
 		inner join @Instance p on p.Id = t.Id and isnull(t.Lock, @defuid) = isnull(p.Lock, @defuid)
 	)
@@ -441,6 +545,7 @@ begin
 		t.[State] = s.[State],
 		t.DateModified = getutcdate(),
 		t.ExecutionStatus = s.ExecutionStatus,
+		t.CorrelationId = isnull(t.CorrelationId, s.CorrelationId),
 		t.Lock = null,
 		t.LockDate = null
 	output inserted.Id into @rtable;
@@ -455,7 +560,7 @@ begin
 	with t as (
 		select tt.*
 		from a2wf.InstanceVariablesInt tt
-		inner join @Instance si on si.Id = tt.InstanceId
+		inner join @Instance si on si.Id = tt.InstanceId and si.WorkflowId = tt.WorkflowId
 	)
 	merge t
 	using (
@@ -475,7 +580,7 @@ begin
 	with t as (
 		select tt.*
 		from a2wf.InstanceVariablesGuid tt
-		inner join @Instance si on si.Id=tt.InstanceId
+		inner join @Instance si on si.Id=tt.InstanceId and si.WorkflowId = tt.WorkflowId
 	)
 	merge t
 	using (
@@ -495,7 +600,7 @@ begin
 	with t as (
 		select tt.*
 		from a2wf.InstanceVariablesString tt
-		inner join @Instance si on si.Id=tt.InstanceId
+		inner join @Instance si on si.Id=tt.InstanceId and si.WorkflowId = tt.WorkflowId
 	)
 	merge t
 	using (
@@ -515,7 +620,7 @@ begin
 	with t as (
 		select tt.*
 		from a2wf.InstanceBookmarks tt
-		inner join @Instance si on si.Id=tt.InstanceId
+		inner join @Instance si on si.Id=tt.InstanceId and tt.WorkflowId = si.WorkflowId
 	)
 	merge t
 	using (
@@ -533,7 +638,7 @@ begin
 	with t as (
 		select tt.*
 		from a2wf.InstanceEvents tt
-		inner join @Instance si on si.Id=tt.InstanceId
+		inner join @Instance si on si.Id=tt.InstanceId and tt.WorkflowId = si.WorkflowId
 	)
 	merge t
 	using (
@@ -542,6 +647,10 @@ begin
 		inner join @Events sib on sib.ParentGUID=si.[GUID]
 	) as s
 	on t.[Event] = s.[Event] and t.InstanceId = s.InstanceId and t.WorkflowId = s.WorkflowId and t.Kind = s.Kind
+	when matched then update set
+		t.Pending = s.Pending,
+		t.[Name] = s.[Name],
+		t.[Text] = s.[Text]
 	when not matched by target then insert
 		(InstanceId, [Kind], [Event], WorkflowId, Pending, [Name], [Text]) values
 		(s.InstanceId, s.[Kind], s.[Event], s.WorkflowId, Pending, [Name], [Text])
@@ -569,3 +678,175 @@ begin
 	values (@InstanceId, @Kind, @Action, @Message, 0);
 end
 go
+------------------------------------------------
+create or alter procedure a2wf.[Engine.Version]
+@Module nvarchar(32) = N'main'
+as
+begin
+	set nocount on;
+	set transaction isolation level read uncommitted;
+	select [Version] from a2wf.Versions where Module = @Module;
+end
+go
+------------------------------------------------
+create or alter function a2wf.[fn_CurrentDate.Get]()
+returns datetime
+as
+begin
+	declare @retval datetime;
+	select @retval = [Date] from a2wf.CurrentDate;
+	if @retval is null
+		set @retval = getutcdate();
+	else
+		set @retval = @retval + cast(cast(getutcdate() as time) as datetime);
+	return @retval;
+end
+go
+------------------------------------------------
+create or alter procedure a2wf.[Instance.Pending.Load]
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+
+	declare @now datetime;
+	set @now = a2wf.[fn_CurrentDate.Get]();
+	-- timers
+	select [Pending!TPend!Array] = null, InstanceId, EventKey = ev.[Event] , ev.Kind
+	from a2wf.InstanceEvents ev
+		inner join a2wf.Instances i on ev.InstanceId = i.Id
+	where ev.Pending <= @now and ev.Kind=N'T' and i.Lock is null
+	order by ev.Pending;
+
+	-- autostart
+	declare @AutoStartTable table(Id bigint);
+	update a2wf.AutoStart set Lock = newid() 
+	output inserted.Id into @AutoStartTable(Id)
+	where Lock is null and InstanceId is null and DateStarted is null and 
+		(StartAt is null or StartAt <= @now);
+
+	select [AutoStart!TAutoStart!Array] = null, [Id!!Id]= a.Id,  
+		WorkflowId, [Version], [Params!!Json] = Params
+	from @AutoStartTable t inner join a2wf.AutoStart a on t.Id = a.Id
+	order by a.DateCreated;
+end
+go
+------------------------------------------------
+create or alter procedure a2wf.[AutoStart.Create]
+@WorkflowId nvarchar(255),
+@Version int = 0,
+@Params nvarchar(max) = null,
+@StartAt datetime = null
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+
+	insert into a2wf.AutoStart(WorkflowId, [Version], [Params], StartAt) 
+	values (@WorkflowId, @Version, @Params, @StartAt);
+end
+go
+------------------------------------------------
+create or alter procedure a2wf.[AutoStart.Complete]
+@Id bigint,
+@InstanceId uniqueidentifier
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+	update a2wf.AutoStart set InstanceId = @InstanceId, DateStarted = getutcdate() 
+	where Id=@Id;
+end
+go
+------------------------------------------------
+create or alter procedure a2wf.[Version.Get]
+as
+begin
+	set nocount on;
+	set transaction isolation level read uncommitted;
+
+	select [Version] from a2wf.Versions where Module = N'main';
+end
+go
+------------------------------------------------
+create or alter procedure a2wf.[CurrentDate.Get]
+as
+begin
+	set nocount on;
+	set transaction isolation level read uncommitted;
+
+	select CurrentDate = a2wf.[fn_CurrentDate.Get]();
+end
+go
+------------------------------------------------
+create or alter procedure a2wf.[CurrentDate.Set]
+@Date date
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+	update a2wf.CurrentDate set [Date] = @Date;
+end
+go
+/*
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2wf' and TABLE_NAME=N'Inbox')
+begin
+	create table a2wf.[Inbox]
+	(
+		Id uniqueidentifier not null,
+		InstanceId uniqueidentifier not null,
+		Bookmark nvarchar(255) not null,
+		DateCreated datetime not null
+			constraint DF_Inbox_DateCreated default(getutcdate()),
+		DateRemoved datetime null
+		Void bit,
+		-- other fields
+		constraint PK_Inbox primary key clustered(Id, InstanceId)
+	);
+end
+go
+------------------------------------------------
+create or alter procedure a2wf.[Instance.Inbox.Create]
+@UserId bigint = null,
+@Id uniqueidentifier,
+@InstanceId uniqueidentifier,
+@Bookmark nvarchar(255),
+... -- other parametets
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+	set xact_abort on;
+
+	insert into a2wf.[Inbox] (Id, InstanceId, Bookmark, ...)
+	values (@Id, @InstanceId, @Bookmark, ...);
+end
+go
+------------------------------------------------
+create or alter procedure a2wf.[Instance.Inbox.Remove]
+@UserId bigint = null,
+@Id uniqueidentifier,
+@InstanceId uniqueidentifier
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+	set xact_abort on;
+
+	update a2wf.Inbox set Void = 1, DateRemoved = getutcdate() where Id=@Id and InstanceId=@InstanceId;
+end
+go*/
+
+/*
+drop table a2wf.InstanceBookmarks;
+drop table a2wf.InstanceTrack;
+drop table a2wf.InstanceEvents;
+drop table a2wf.InstanceVariablesGuid;
+drop table a2wf.InstanceVariablesString;
+drop table a2wf.InstanceVariablesInt;
+drop table a2wf.Instances;
+drop table a2wf.Workflows;
+drop table a2wf.Catalog;
+drop table a2wf.AutoStart;
+*/

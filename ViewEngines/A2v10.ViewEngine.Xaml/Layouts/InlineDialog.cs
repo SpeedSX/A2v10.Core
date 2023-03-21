@@ -1,21 +1,19 @@
 ﻿// Copyright © 2020-2021 Alex Kukhtin. All rights reserved.
 
-using System;
-
 namespace A2v10.Xaml
 {
 	public class InlineDialog : Container
 	{
-		public String Id { get; set; }
+		public String? Id { get; set; }
 
-		public String Title { get; set; }
-		public Length Width { get; set; }
+		public String? Title { get; set; }
+		public Length? Width { get; set; }
 		public Boolean NoClose { get; set; }
 		public Boolean ShowWaitCursor { get; set; }
 
 		public UIElementCollection Buttons { get; set; } = new UIElementCollection();
 
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			if (String.IsNullOrEmpty(Id))
 				throw new XamlException("Id is required for Inline Dialog");

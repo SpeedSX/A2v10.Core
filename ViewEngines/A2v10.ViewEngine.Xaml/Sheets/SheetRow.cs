@@ -1,12 +1,9 @@
 ﻿// Copyright © 2015-2021 Alex Kukhtin. All rights reserved.
 
-using System;
+using A2v10.Infrastructure;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
-
-using A2v10.System.Xaml;
-using A2v10.Infrastructure;
 
 namespace A2v10.Xaml
 {
@@ -34,7 +31,7 @@ namespace A2v10.Xaml
 
 		public MarkStyle Mark { get; set; }
 
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			if (SkipRender(context))
 				return;
@@ -61,7 +58,7 @@ namespace A2v10.Xaml
 			if (Style != RowStyle.Default)
 				tr.AddCssClass("row-" + Style.ToString().ToKebabCase());
 			if (Align != null)
-				tr.AddCssClass("text-" + Align.ToString().ToLowerInvariant());
+				tr.AddCssClass("text-" + Align.ToString()!.ToLowerInvariant());
 			tr.RenderStart(context);
 			foreach (var c in Cells)
 				c.RenderElement(context);
@@ -75,11 +72,11 @@ namespace A2v10.Xaml
 				c.SetParent(this);
 		}
 
-		public override void OnSetStyles()
+		public override void OnSetStyles(RootContainer root)
 		{
-			base.OnSetStyles();
+			base.OnSetStyles(root);
 			foreach (var c in Cells)
-				c.OnSetStyles();
+				c.OnSetStyles(root);
 		}
 	}
 
@@ -90,23 +87,23 @@ namespace A2v10.Xaml
 
 	public class SheetRowsConverter : TypeConverter
 	{
-		public override Boolean CanConvertFrom(ITypeDescriptorContext context, Type sourceType)
+		public override Boolean CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
 		{
 			if (sourceType == typeof(String))
 				return true;
 			return false;
 		}
 
-		public override Object ConvertFrom(ITypeDescriptorContext context, CultureInfo culture, Object value)
+		public override Object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, Object value)
 		{
 			if (value == null)
 				return null;
-			if (value is String)
+			if (value is String strVal)
 			{
 				var rows = new SheetRows();
 				var row = new SheetRow();
 				rows.Add(row);
-				foreach (var s in value.ToString().Split(','))
+				foreach (var s in strVal.Split(','))
 				{
 					row.Cells.Add(new SheetCell() { Content = s.Trim() });
 				}

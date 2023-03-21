@@ -1,16 +1,15 @@
 ﻿// Copyright © 2015-2020 Alex Kukhtin. All rights reserved.
 
-using System;
 using A2v10.Infrastructure;
 
 namespace A2v10.Xaml
 {
-	public class TimePicker: ValuedControl, ITableControl
+	public class TimePicker : ValuedControl, ITableControl
 	{
 		public TextAlign Align { get; set; }
 		public DropDownPlacement Placement { get; set; }
 
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			if (CheckDisabledModel(context))
 				return;

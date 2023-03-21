@@ -1,7 +1,4 @@
-﻿// Copyright © 2015-2017 Alex Kukhtin. All rights reserved.
-
-using System;
-using A2v10.System.Xaml;
+﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
 
 namespace A2v10.Xaml
 {
@@ -26,16 +23,18 @@ namespace A2v10.Xaml
 		Seagreen,
 		Tan,
 		Magenta,
-		LightGray
+		LightGray,
+		Olive,
+		Teal
 	}
 
 	[ContentProperty("Content")]
 	public class TagLabel : Inline
 	{
-		public String Content { get; set; }
+		public String? Content { get; set; }
 		public TagLabelStyle Style { get; set; }
 
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			if (SkipRender(context))
 				return;
@@ -57,8 +56,8 @@ namespace A2v10.Xaml
 			}
 
 			span.RenderStart(context);
-			if (Content is String)
-				context.Writer.Write(context.LocalizeCheckApostrophe(Content.ToString()));
+			if (Content is String strCont)
+				context.Writer.Write(context.LocalizeCheckApostrophe(strCont));
 			span.RenderEnd(context);
 		}
 	}

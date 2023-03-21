@@ -5,6 +5,7 @@ using System.Linq;
 using System.Collections.Generic;
 
 using A2v10.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace A2v10.Platform.Web
 {
@@ -42,8 +43,11 @@ namespace A2v10.Platform.Web
 		{
 			var engine = _engines.FirstOrDefault(x => x.Name == name);
 			if (engine == null)
-				throw new InvalidReqestExecption($"Report engine not found for '{name}' not found");
-			return _serviceProvider.GetService(engine.EngineType) as IReportEngine;
+				throw new InvalidReqestExecption($"Report engine for '{name}' not found");
+			var rs = _serviceProvider.GetRequiredService(engine.EngineType);
+			if (rs is IReportEngine re)
+				return re;
+			throw new InvalidReqestExecption($"Report engine '{engine.EngineType}' is not an IReportEngine");
 		}
 	}
 }

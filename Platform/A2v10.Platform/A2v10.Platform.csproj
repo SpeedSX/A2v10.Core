@@ -1,22 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net5.0</TargetFramework>
-		<Version>10.1.8045</Version>
+		<TargetFramework>net6.0</TargetFramework>
+		<Version>10.1.8085</Version>
 		<Product>A2v10</Product>
 		<PackageId>A2v10.Plaform</PackageId>
 		<Authors>Oleksandr Kukthin</Authors>
 		<Company>Oleksandr Kukthin</Company>
 		<Description>A2v10 Platform core</Description>
-		<Copyright>Copyright © 2015-2021 Oleksandr Kukthin. All rights reserved.</Copyright>
-		<RepositoryType>github</RepositoryType>
+		<Copyright>Copyright © 2015-2022 Oleksandr Kukthin. All rights reserved.</Copyright>
+		<RepositoryType>git</RepositoryType>
+		<RepositoryUrl>https://github.com/alex-kukhtin/A2v10.Core</RepositoryUrl>
 		<PackageTags>A2v10 Platform</PackageTags>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\Identity\A2v10.Identity.Core\A2v10.Identity.Core.csproj" />
 		<ProjectReference Include="..\..\Identity\A2v10.Web.Identity.UI\A2v10.Web.Identity.UI.csproj" />
-		<ProjectReference Include="..\..\ReportEngines\A2v10.ReportEngine.Stimulsoft\A2v10.ReportEngine.Stimulsoft.csproj" />
+		<ProjectReference Include="..\..\ViewEngines\A2v10.ViewEngine.Html\A2v10.ViewEngine.Html.csproj" />
 		<ProjectReference Include="..\..\ViewEngines\A2v10.ViewEngine.Xaml\A2v10.ViewEngine.Xaml.csproj" />
 		<ProjectReference Include="..\A2v10.Platform.Web\A2v10.Platform.Web.csproj" />
 		<ProjectReference Include="..\A2v10.Services\A2v10.Services.csproj" />
@@ -30,8 +32,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="A2v10.Data.Core" Version="10.0.7269" />
-		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" PrivateAssets="All" />
+		<PackageReference Include="A2v10.Data.Core" Version="10.0.7326" />
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
 	</ItemGroup>
 
 </Project>

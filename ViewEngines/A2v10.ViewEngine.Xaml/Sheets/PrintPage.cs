@@ -1,10 +1,9 @@
 ﻿// Copyright © 2020 Alex Kukhtin. All rights reserved.
 
-using System;
+using A2v10.Infrastructure;
 using System.ComponentModel;
 using System.Globalization;
 using System.Text;
-using A2v10.Infrastructure;
 
 namespace A2v10.Xaml
 {
@@ -23,8 +22,8 @@ namespace A2v10.Xaml
 	public class PrintPage
 	{
 		public PageOrientation Orientation { get; set; }
-		public Thickness Margin { get; set; }
-		public ZoomValue Zoom { get; set; }
+		public Thickness? Margin { get; set; }
+		public ZoomValue? Zoom { get; set; }
 
 		public String ToJson()
 		{
@@ -42,7 +41,7 @@ namespace A2v10.Xaml
 
 	public class ZoomConverter : TypeConverter
 	{
-		public override Boolean CanConvertFrom(ITypeDescriptorContext context, Type sourceType)
+		public override Boolean CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
 		{
 			if (sourceType == typeof(String))
 				return true;
@@ -51,20 +50,20 @@ namespace A2v10.Xaml
 			return false;
 		}
 
-		public override Object ConvertFrom(ITypeDescriptorContext context, CultureInfo culture, Object value)
+		public override Object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, Object value)
 		{
 			if (value == null)
 				return null;
-			if (value is String)
+			if (value is String strVal)
 			{
-				String strVal = value.ToString().Trim();
+				strVal = strVal.Trim();
 				var z = new ZoomValue();
 				if (strVal == "Auto")
 				{
 					z.Auto = true;
 					return z;
 				}
-				else if (strVal.EndsWith("%"))
+				else if (strVal.EndsWith('%'))
 				{
 					if (Double.TryParse(strVal[0..^1], NumberStyles.Any, CultureInfo.InvariantCulture, out Double dblVal))
 					{

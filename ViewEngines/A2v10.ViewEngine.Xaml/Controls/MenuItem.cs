@@ -1,7 +1,5 @@
 ﻿// Copyright © 2015-2019 Alex Kukhtin. All rights reserved.
 
-using System;
-
 namespace A2v10.Xaml
 {
 	public enum SeparatorMode
@@ -17,7 +15,7 @@ namespace A2v10.Xaml
 
 		public SeparatorMode Separator { get; set; }
 
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			if (SkipRender(context))
 				return;

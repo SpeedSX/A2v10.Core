@@ -1,8 +1,5 @@
 ﻿// Copyright © 2015-2017 Alex Kukhtin. All rights reserved.
 
-using System;
-using A2v10.System.Xaml;
-
 namespace A2v10.Xaml.Drawing
 {
 	[ContentProperty("Content")]
@@ -10,11 +7,11 @@ namespace A2v10.Xaml.Drawing
 	{
 		public Icon Icon { get; set; }
 
-		public Size Size { get; set; }
-		public Point Pos { get; set; }
+		public Size? Size { get; set; }
+		public Point? Pos { get; set; }
 
-		public Object Content { get; set; }
-		public Command Command { get; set; }
+		public Object? Content { get; set; }
+		public Command? Command { get; set; }
 
 		internal override void RenderElement(RenderContext context)
 		{

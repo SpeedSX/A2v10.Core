@@ -1,11 +1,9 @@
 ﻿// Copyright © 2015-2017 Alex Kukhtin. All rights reserved.
 
 
-using System;
+using A2v10.Infrastructure;
 using System.ComponentModel;
 using System.Globalization;
-using A2v10.System.Xaml;
-using A2v10.Infrastructure;
 
 namespace A2v10.Xaml
 {
@@ -44,24 +42,24 @@ namespace A2v10.Xaml
 	public class Popover : Inline
 	{
 		public PopupPlacement Placement { get; set; }
-		public Object Content { get; set; }
-		public String Text { get; set; }
+		public Object? Content { get; set; }
+		public String? Text { get; set; }
 		public Icon Icon { get; set; }
-		public Length Width { get; set; }
-		public Length Top { get; set; }
+		public Length? Width { get; set; }
+		public Length? Top { get; set; }
 
-		public String Url { get; set; }
-		public Length OffsetX { get; set; }
+		public String? Url { get; set; }
+		public Length? OffsetX { get; set; }
 
 		public PopoverUnderlineMode Underline { get; set; }
 
 		public PopoverBackgroundStyle Background { get; set; }
 
-		public String Badge { get; set; }
+		public String? Badge { get; set; }
 		public Boolean ShowOnHover { get; set; }
 
 
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			if (SkipRender(context))
 				return;
@@ -107,9 +105,9 @@ namespace A2v10.Xaml
 				cont.MergeAttribute("v-text", cntBind.GetPathFormat(context));
 				cont.Render(context);
 			}
-			else if (Content is UIElementBase)
+			else if (Content is UIElementBase uiElemBase)
 			{
-				(Content as UIElementBase).RenderElement(context);
+				uiElemBase.RenderElement(context);
 			}
 			else if (Content != null)
 			{
@@ -141,7 +139,7 @@ namespace A2v10.Xaml
 
 	internal class PopoverConverter : TypeConverter
 	{
-		public override Boolean CanConvertFrom(ITypeDescriptorContext context, Type sourceType)
+		public override Boolean CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
 		{
 			if (sourceType == typeof(String))
 				return true;
@@ -152,7 +150,7 @@ namespace A2v10.Xaml
 			return false;
 		}
 
-		public override Object ConvertFrom(ITypeDescriptorContext context, CultureInfo culture, Object value)
+		public override Object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, Object value)
 		{
 			if (value == null)
 				return null;
@@ -164,7 +162,8 @@ namespace A2v10.Xaml
 			else if (value is Popover)
 				return value;
 			else if (value is UIElement uiValue)
-				return new Popover() {
+				return new Popover()
+				{
 					Content = uiValue,
 					Icon = Icon.HelpOutline
 				};

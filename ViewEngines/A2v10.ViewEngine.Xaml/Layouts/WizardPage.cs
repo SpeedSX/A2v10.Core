@@ -1,18 +1,14 @@
 ﻿// Copyright © 2015-2017 Alex Kukhtin. All rights reserved.
 
-
-using System;
-using System.Collections.Generic;
-
 namespace A2v10.Xaml
 {
 	public class WizardPage : Container
 	{
-		public String Header { get; set; }
-		public String Description { get; set; }
-		public Length Height { get; set; }
+		public String? Header { get; set; }
+		public String? Description { get; set; }
+		public Length? Height { get; set; }
 
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			if (SkipRender(context))
 				return;

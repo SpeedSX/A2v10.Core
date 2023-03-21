@@ -1,8 +1,6 @@
 ﻿// Copyright © 2015-2017 Alex Kukhtin. All rights reserved.
 
-using System;
 using System.Collections.Generic;
-using A2v10.System.Xaml;
 
 namespace A2v10.Xaml
 {
@@ -18,14 +16,14 @@ namespace A2v10.Xaml
 	[ContentProperty("Content")]
 	public class PropertyGridItem : UIElementBase
 	{
-		public String Name { get; set; }
-		public Object Content { get; set; }
+		public String? Name { get; set; }
+		public Object? Content { get; set; }
 
 		public Boolean? Bold { get; set; }
 
 		public Boolean HideEmpty { get; set; }
 
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			if (SkipRender(context))
 				return;
@@ -36,7 +34,7 @@ namespace A2v10.Xaml
 			onRender?.Invoke(tr);
 			MergeAttributes(tr, context);
 
-			if (HideEmpty && GetBinding(nameof(If)) == null &&  contBind != null)
+			if (HideEmpty && GetBinding(nameof(If)) == null && contBind != null)
 			{
 				tr.MergeAttribute("v-if", contBind.GetPathFormat(context));
 			}
@@ -61,8 +59,8 @@ namespace A2v10.Xaml
 					valCell.MergeAttribute(":class", $"$getNegativeRedClass({contBind.GetPath(context)})");
 			}
 			valCell.RenderStart(context);
-			if (Content is UIElementBase)
-				(Content as UIElementBase).RenderElement(context);
+			if (Content is UIElementBase uiElemBase)
+				uiElemBase.RenderElement(context);
 			else if (Content != null)
 				context.Writer.Write(context.LocalizeCheckApostrophe(Content.ToString()));
 			valCell.RenderEnd(context);

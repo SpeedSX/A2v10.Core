@@ -5,7 +5,7 @@
 <!DOCTYPE html>
 <!--
 A2v10 platform.
-Copyright © 2015-2021 Alex Kukhtin. All rights reserved.
+Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
 Site: https://a2v10.com
 GitHub: https://github.com/alex-kukhtin/A2v10.Core
 -->
@@ -17,7 +17,7 @@ GitHub: https://github.com/alex-kukhtin/A2v10.Core
 	<meta name="format-detection" content="telephone=no" />
 	<meta name="google" content="notranslate" />
 	<title></title>
-	<link href="/css/classic.min.css?v=@appVersion.AppBuild" rel="stylesheet" />
+	@Html.Raw(Model.Theme)
 	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
 	<link rel="icon" href="/favicon.ico" type="image/x-icon" />
 </head>
@@ -25,8 +25,8 @@ GitHub: https://github.com/alex-kukhtin/A2v10.Core
 	<div id="app" class="shell" v-cloak>
 		<header class="header">
 			<a class="h-block" href="/">
-				<span class=app-title>@Model.Title.AppTitle</span>
-				<span class=app-subtitle>@Model.Title.AppSubTitle</span>
+				<span class=app-title>@Model?.Title?.AppTitle</span>
+				<span class=app-subtitle>@Model?.Title?.AppSubTitle</span>
 			</a>
 		</header>
 		<div class="main-view">

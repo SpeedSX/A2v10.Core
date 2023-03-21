@@ -1,7 +1,7 @@
 ﻿
-/* Copyright © 2019-2021 Alex Kukhtin. All rights reserved. */
-/* Version 10.0.7807 */
+/* Copyright © 2019-2023 Oleksandr Kukhtin. All rights reserved. */
 
+/* Version 10.0.7922 */
 
 declare function require(url: string): any;
 
@@ -122,6 +122,7 @@ interface IRoot extends IElement {
 	$forceValidate(): void;
 	$setDirty(dirty: boolean, path?: string): void;
 	$createModelInfo(elem: IElementArray<IElement>, modelInfo: IModelInfo): IModelInfo;
+	$hasErrors(props: string[]): boolean;
 }
 
 
@@ -246,12 +247,12 @@ interface IController {
 	$save(): Promise<object>;
 	$requery(): void;
 	$reload(args?: any): Promise<void>;
-	$invoke(command: string, arg?: object, path?: string, opts?: { catchError: boolean }): Promise<any>;
+	$invoke(command: string, arg?: object, path?: string, opts?: { catchError?: boolean, hideIndicator?: boolean }): Promise<any>;
 	$close(): void;
 	$modalClose(result?: any): any;
 	$msg(msg: string, title?: string, style?: CommonStyle): Promise<boolean>;
 	$alert(msg: string | IMessage): Promise<boolean>;
-	$confirm(msg: string | IConfirm): Promise<boolean>;
+	$confirm(msg: string | IConfirm): Promise<boolean|string>;
 	$showDialog(url: string, data?: object, query?: object): Promise<any>;
 	$inlineOpen(id: string): void;
 	$inlineClose(id: string, result?: any): void;
@@ -264,10 +265,15 @@ interface IController {
 	$navigate(url: string, data?: object, newWindow?: boolean, updateAfter?: IElementArray<IElement>): void;
 	$defer(handler: () => void): void;
 	$setFilter(target: any, prop: string, value: any): void;
+	$clearFilter(target: any): void;
 	$expand(elem: ITreeElement, prop: string, value: boolean): Promise<any>;
 	$focus(htmlid: string): void;
 	$report(report: string, arg: object, opts?: { export?: Boolean, attach?: Boolean, print?: Boolean, format?: ReportFormat }, url?: string, data?: object): void;
-	$upload(url: string, accept?: string): Promise<any>;
+	$upload(url: string, accept?: string, data?: { Id?: any, Key?: any }, opts?: { catchError?: boolean }): Promise<any>;
+	$emitCaller(event: string, ...params: any[]): void;
+	$emitSaveEvent(): void;
+	$nodirty(func: () => Promise<any>): void;
+	$showSidePane(url: string, arg?: string | number, data?: object): void;
 }
 
 interface IMessage {
@@ -279,7 +285,9 @@ interface IMessage {
 interface IConfirm {
 	msg: string;
 	style?: MessageStyle;
+	title?: string;
 	list?: string[];
+	buttons?: { text: string, result: string | boolean }[];
 }
 
 interface IErrorInfo {
@@ -344,6 +352,7 @@ interface UtilsDate {
 	isZero(d: Date): boolean;
 	add(d: Date, nm: number, unit: DateTimeUnit);
 	create(year: number, month: number, day: number): Date;
+	createTime(year: number, month: number, day: number, hour?: number, minute?: number, second?: number): Date
 	fromDays(days: number): Date;
 	compare(d1: Date, d2: Date): number;
 	diff(unit: DateUnit, d1: Date, d2: Date): number;
@@ -397,6 +406,8 @@ interface Utils {
 
 	eval(obj: any, path: string, dataType: DataType, opts?: FormatOptions, skipFormat?: boolean): any;
 	simpleEval(obj: any, path: string): any;
+
+	mergeTemplate(tml1: Template, tml2: Template): Template;
 
 	readonly date: UtilsDate;
 	readonly text: UtilsText;

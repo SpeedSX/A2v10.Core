@@ -1,9 +1,6 @@
 ﻿// Copyright © 2015-2019 Alex Kukhtin. All rights reserved.
 
 using A2v10.Infrastructure;
-using System;
-
-using A2v10.System.Xaml;
 
 namespace A2v10.Xaml
 {
@@ -21,7 +18,7 @@ namespace A2v10.Xaml
 		public Boolean Block { get; set; }
 		public TextAlign Align { get; set; }
 
-		public override void RenderElement(RenderContext context, Action<TagBuilder> onRender = null)
+		public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 		{
 			if (SkipRender(context))
 				return;

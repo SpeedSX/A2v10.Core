@@ -1,7 +1,6 @@
 ﻿// Copyright © 2015-2017 Alex Kukhtin. All rights reserved.
 
 using A2v10.Infrastructure;
-using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
@@ -11,7 +10,7 @@ namespace A2v10.Xaml
 	public class TableColumn : XamlElement
 	{
 		public Boolean Fit { get; set; }
-		public Length Width { get; set; }
+		public Length? Width { get; set; }
 		public ColumnBackgroundStyle Background { get; set; }
 
 		public Boolean? If { get; set; }
@@ -58,7 +57,7 @@ namespace A2v10.Xaml
 
 	public class TableColumnCollectionConverter : TypeConverter
 	{
-		public override Boolean CanConvertFrom(ITypeDescriptorContext context, Type sourceType)
+		public override Boolean CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
 		{
 			if (sourceType == typeof(String))
 				return true;
@@ -67,15 +66,15 @@ namespace A2v10.Xaml
 			return false;
 		}
 
-		public override Object ConvertFrom(ITypeDescriptorContext context, CultureInfo culture, Object value)
+		public override Object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, Object value)
 		{
 			if (value == null)
 				return null;
 			else if (value is TableColumnCollection)
 				return value;
-			if (value is String)
+			if (value is String strVal)
 			{
-				var vals = value.ToString().Split(',');
+				var vals = strVal.Split(',');
 				var coll = new TableColumnCollection();
 				foreach (var val in vals)
 				{
