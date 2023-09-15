@@ -18,8 +18,7 @@ public class UnitTest1 : IClassFixture<ApiTestAppFactory>
 	public UnitTest1(ApiTestAppFactory factory)
 	{
 		_factory = factory;
-		var dbContext = _factory.Services.GetService<IDbContext>();
-		int z = 44;
+		// var dbContext = _factory.Services.GetService<IDbContext>();
 	}
 
 	[Fact]
@@ -33,6 +32,5 @@ public class UnitTest1 : IClassFixture<ApiTestAppFactory>
 		Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
 		var body = await resp.Content.ReadAsStringAsync();
 		var list = JsonConvert.DeserializeObject<List<ExpandoObject>>(body);
-		int z = 55;
 	}
 }

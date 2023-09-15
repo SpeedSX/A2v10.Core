@@ -15,7 +15,7 @@ public static class ServerCommandRegistry
 					serviceProvider.GetRequiredService<IDbContext>()
 				),
 			ModelCommandType.invokeTarget => new InvokeCommandInvokeTarget(serviceProvider),
-			ModelCommandType.clr => throw new DataServiceException("CLR yet not implemented"),
+			ModelCommandType.clr => new InvokeCommandInvokeClr(serviceProvider),
 			ModelCommandType.javascript => new InvokeCommandJavascript(serviceProvider),
 			ModelCommandType.file => new InvokeCommandFile(serviceProvider),
 			ModelCommandType.xml => throw new DataServiceException("xml command yet not implemented"),
@@ -23,6 +23,7 @@ public static class ServerCommandRegistry
 			ModelCommandType.sendMessage => throw new DataServiceException("sendMessage command yet not implemented"),
 			// new
 			ModelCommandType.csharp => new InvokeCommandCSharp(serviceProvider),
+			ModelCommandType.signal => new InvokeCommandSignal(serviceProvider),
 			// deprectated
 			ModelCommandType.startProcess or ModelCommandType.resumeProcess => throw new DataServiceException("Workflow commands are not supported in this version"),
 			ModelCommandType.script => throw new DataServiceException("script command is not supported"),

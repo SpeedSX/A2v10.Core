@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2021 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Collections.Generic;
@@ -20,23 +20,55 @@ public interface IModelBase
 
 	String? DataSource { get; }
 
+	Boolean Signal { get; }
+
 	String LoadProcedure();
-	Boolean HasModel();
+    String UpdateProcedure();
+    Boolean HasModel();
 
 	String Path { get; }
 	String BaseUrl { get; }
 
+	Int32 CommandTimeout { get; }
+
 	ExpandoObject CreateParameters(IPlatformUrl url, Object? id, Action<ExpandoObject>? setParams = null, ParametersFlags flags = ParametersFlags.None);
+}
+
+public enum ModelBlobType
+{
+    sql,
+    json,
+	clr,
+	parse,
+	azureBlob
+}
+
+public enum ModelParseType
+{
+	none,
+    json,
+	xlsx,
+	excel,
+	csv,
+	dbf,
+	xml,
+	auto
 }
 
 public interface IModelBlob
 {
 	String? Id { get; }
-	String? Key { get; }
-
-	String? DataSource { get; }
-	String LoadProcedure();
+	String? Key { get; }    
+	ModelBlobType Type { get; }	
+	ModelParseType Parse { get; }
+    String? DataSource { get; }
+    String? ClrType { get; }
+    String? OutputFileName { get; }
+	Boolean Zip { get; }
+    Int32 CommandTimeout { get; }
+    String LoadProcedure();
 	String UpdateProcedure();
+    
 }
 
 public interface IModelMerge : IModelBase
@@ -65,10 +97,11 @@ public interface IModelView : IModelBase
 
 	Boolean IsSkipDataStack { get; }
 
+	Boolean IsPlain { get; }
+	String? SqlTextKey();
 	String ExpandProcedure();
-	String UpdateProcedure();
 	String LoadLazyProcedure(String property);
-	String DeleteProcedure(String property);
+	String DeleteProcedure(String? property);
 
 	IModelView Resolve(IDataModel model);
 }
@@ -84,6 +117,7 @@ public interface IModelCommand : IModelBase
 
 	String? Target { get; }
 	String? File { get; }
+	String? ClrType { get; }
 	ExpandoObject? Args { get; }
 }
 

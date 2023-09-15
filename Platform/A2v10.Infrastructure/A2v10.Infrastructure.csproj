@@ -4,21 +4,23 @@
 		<TargetFrameworks>net6.0;net7.0</TargetFrameworks>
 		<Nullable>enable</Nullable>
 		<AssemblyName>A2v10.Infrastructure</AssemblyName>
-		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-		<Version>10.1.8085</Version>
+		<GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+		<Version>10.1.8150</Version>
 		<Product>A2v10</Product>
 		<PackageId>A2v10.Infrastructure</PackageId>
 		<Authors>Oleksandr Kukhtin</Authors>
 		<Company>Oleksandr Kukhtin</Company>
 		<Description>A2v10 Platform Abstractions</Description>
-		<Copyright>Copyright © 2015-2022 Oleksandr Kukhtin. All rights reserved.</Copyright>
+		<Copyright>Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.</Copyright>
 		<RepositoryType>github</RepositoryType>
 		<PackageTags>A2v10</PackageTags>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="A2v10.Data.Interfaces" Version="10.0.7326" />
-		<PackageReference Include="A2v10.Runtime.Interfaces" Version="10.1.8030" />
+		<PackageReference Include="A2v10.Data.Interfaces" Version="10.1.7338" />
+		<PackageReference Include="A2v10.Runtime.Interfaces" Version="10.1.8110" />
 	</ItemGroup>
 
 	<PropertyGroup>
@@ -32,4 +34,7 @@
 		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
 </Project>

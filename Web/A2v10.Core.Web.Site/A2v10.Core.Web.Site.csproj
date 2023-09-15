@@ -1,8 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
-		<TargetFramework>net6.0</TargetFramework>
+		<TargetFramework>net7.0</TargetFramework>
 		<Nullable>enable</Nullable>
+		<LangVersion>Latest</LangVersion>
 		<UserSecretsId>aspnet-A2v10.Core.Web.Site-3AAA4AB7-4DED-4E64-815B-F75EEDCF167E</UserSecretsId>
 	</PropertyGroup>
 
@@ -14,21 +15,36 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Content Remove="C:\Users\alexk\.nuget\packages\a2v10.workflow.engine\10.1.8044\contentFiles\any\net5.0\SqlScripts\a2v10_workflow.sql" />
+	  <Content Remove="C:\Users\alexk\.nuget\packages\a2v10.workflow.engine\10.1.8102\contentFiles\any\net6.0\SqlScripts\a2v10_workflow.sql" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="A2v10.Workflow.Engine" Version="10.1.8101" />
+	  <None Include="..\..\Platform\A2v10.App.Assets\Application\%40sql\a2v10_platform.sql" Link="a2v10_platform.sql" />
+	  <None Include="..\..\Platform\A2v10.App.Assets\Application\%40sql\a2v10_platform_mt_catalog.sql" Link="a2v10_platform_mt_catalog.sql" />
+	  <None Include="..\..\Platform\A2v10.App.Assets\Application\%40sql\a2v10_platform_mt_segment.sql" Link="a2v10_platform_mt_segment.sql" />
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="A2v10.Workflow.Engine" Version="10.1.8109" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Extensions\A2v10.Scheduling.Commands\A2v10.Scheduling.Commands.csproj" />
+		<ProjectReference Include="..\..\Extensions\A2v10.Scheduling\A2v10.Scheduling.csproj" />
+		<ProjectReference Include="..\..\Messaging\A2v10.MailClient\A2v10.MailClient.csproj" />
 		<ProjectReference Include="..\..\Platform\A2v10.Platform\A2v10.Platform.csproj" />
 		<ProjectReference Include="..\..\ReportEngines\A2v10.ReportEngine.Pdf\A2v10.ReportEngine.Pdf.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<Reference Include="MainApp">
-			<HintPath>..\..\..\A2v10.App.Compiler\MainApp\bin\Debug\net6.0\MainApp.dll</HintPath>
+		<Reference Include="A2v10.LicenseManager">
+		  <HintPath>..\..\..\A2v10.LicenseManager\bin\Debug\net6.0\A2v10.LicenseManager.dll</HintPath>
+		</Reference>
+		<Reference Include="AppMain">
+		  <HintPath>..\..\..\..\Projects\NovaEra.2023\AppMain\bin\Debug\net6.0\AppMain.dll</HintPath>
+		</Reference>
+		<Reference Include="AppPersonnel">
+		  <HintPath>..\..\..\..\Projects\NovaEra.2023\AppPersonnel\bin\Debug\net6.0\AppPersonnel.dll</HintPath>
 		</Reference>
 	</ItemGroup>
 

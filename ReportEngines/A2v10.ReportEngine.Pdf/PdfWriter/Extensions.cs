@@ -1,4 +1,4 @@
-﻿// Copyright © 2022 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2022-2023 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 
@@ -7,6 +7,8 @@ using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 
 namespace A2v10.ReportEngine.Pdf;
+
+using Image = A2v10.Xaml.Report.Image;
 
 internal static class Extensions
 {
@@ -18,7 +20,7 @@ internal static class Extensions
 			Table table => new TableComposer(table, context),
 			Text text => new TextComposer(text, context),
 			Image image => new ImageComposer(image, context),
-			Line line => new LineComposer(line, context),
+			Line line => new LineComposer(line),
 			List list => new ListComposer(list, context),
 			Inlined inlined => new InlinedComposer(inlined, context),
 			Checkbox checkbox => new CheckboxComposer(checkbox, context),

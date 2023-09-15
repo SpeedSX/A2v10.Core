@@ -1,6 +1,7 @@
 ﻿// Copyright © 2021-2023 Oleksandr Kukhtin. All rights reserved.
 
 using System.Text;
+using System.IO;
 using System.Net.Http;
 using System.Security.Cryptography;
 
@@ -12,91 +13,108 @@ using Jint.Native;
 using A2v10.Data.Interfaces;
 
 namespace A2v10.Services.Javascript;
+
+#pragma warning disable IDE1006 // Naming Styles
+#pragma warning disable CA1822 // Mark members as static
+
 public class ScriptEnvironment
 {
 	private readonly IDbContext _dbContext;
 	private readonly ScriptConfig _config;
 	private readonly IHttpClientFactory _httpClientFactory;
 	private readonly IAppCodeProvider _appCodeProvider;
+	private readonly ICurrentUser _currentUser;
 	private readonly Engine _engine;
+	private readonly ScriptUser _currentScriptUser;
 
-	private String _currentPath = String.Empty;
+	//private String _currentPath = String.Empty;
 	public ScriptEnvironment(Engine engine, IServiceProvider serviceProvider)
 	{
 		_dbContext = serviceProvider.GetRequiredService<IDbContext>();
 		_config = new ScriptConfig(serviceProvider.GetRequiredService<IApplicationHost>());
 		_httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
 		_appCodeProvider = serviceProvider.GetRequiredService<IAppCodeProvider>();
-		_engine = engine;
-	}
+        _currentUser = serviceProvider.GetRequiredService<ICurrentUser>();
+        _engine = engine;
+		_currentScriptUser = new ScriptUser(_currentUser);
 
-	public void SetPath(String path)
+    }
+
+	public void SetPath(String _/*path*/)
 	{
-		_currentPath = path;
+		//_currentPath = path;
 	}
 
-#pragma warning disable IDE1006 // Naming Styles
 	public ScriptConfig config => _config;
-#pragma warning restore IDE1006 // Naming Styles
+    public ScriptUser currentUser => _currentScriptUser;
 
-#pragma warning disable IDE1006 // Naming Styles
-	public ExpandoObject loadModel(ExpandoObject prms)
-#pragma warning restore IDE1006 // Naming Styles
+    public ExpandoObject loadModel(ExpandoObject prms)
 	{
 		String? source = prms.Get<String>("source");
 		String command = prms.GetNotNull<String>("procedure");
-		ExpandoObject? dmParams = prms.Get<ExpandoObject>("parameters");
-		var dm = _dbContext.LoadModel(source, command, dmParams);
+		Boolean forCurrentUser = prms.Get<Boolean>("forCurrentUser");
+		ExpandoObject? dmParams = prms.Get<ExpandoObject>("parameters")
+			?? new ExpandoObject();
+		if (forCurrentUser)
+		{
+			SetCurrentUserParams(dmParams);
+            source = _currentUser.Identity.Segment;
+        }
+        var dm = _dbContext.LoadModel(source, command, dmParams);
 		return dm.Root;
 	}
 
-#pragma warning disable IDE1006 // Naming Styles
 	public ExpandoObject saveModel(ExpandoObject prms)
-#pragma warning restore IDE1006 // Naming Styles
 	{
 		String? source = prms.Get<String>("source");
 		String command = prms.GetNotNull<String>("procedure");
 		ExpandoObject data = prms.GetNotNull<ExpandoObject>("data");
-		ExpandoObject? dmParams = prms.Get<ExpandoObject>("parameters");
+
+        Boolean forCurrentUser = prms.Get<Boolean>("forCurrentUser");
+        ExpandoObject? dmParams = prms.Get<ExpandoObject>("parameters")
+            ?? new ExpandoObject();
+		if (forCurrentUser)
+		{
+			SetCurrentUserParams(dmParams);
+			source = _currentUser.Identity.Segment;
+		}
+        
 		var dm = _dbContext.SaveModel(source, command, data, dmParams);
 		return dm.Root;
 	}
 
-#pragma warning disable IDE1006 // Naming Styles
 	public ExpandoObject? executeSql(ExpandoObject prms)
-#pragma warning restore IDE1006 // Naming Styles
 	{
 		String? source = prms.Get<String>("source");
 		String command = prms.GetNotNull<String>("procedure");
-		ExpandoObject? dmParams = prms.Get<ExpandoObject>("parameters");
-		return _dbContext.ReadExpando(source, command, dmParams);
+        Boolean forCurrentUser = prms.Get<Boolean>("forCurrentUser");
+        ExpandoObject? dmParams = prms.Get<ExpandoObject>("parameters")
+            ?? new ExpandoObject();
+		if (forCurrentUser)
+		{
+			SetCurrentUserParams(dmParams);
+            source = _currentUser.Identity.Segment;
+        }
+        return _dbContext.ReadExpando(source, command, dmParams);
 	}
 
-#pragma warning disable IDE1006 // Naming Styles
 	public FetchResponse fetch(String url)
-#pragma warning restore IDE1006 // Naming Styles
 	{
 		return fetch(url, null);
 	}
 
-#pragma warning disable IDE1006 // Naming Styles
 	public FetchResponse fetch(String url, ExpandoObject? prms)
-#pragma warning restore IDE1006 // Naming Styles
 	{
 		return FetchCommand.Execute(_httpClientFactory, url, prms);
 	}
 
-#pragma warning disable IDE1006 // Naming Styles
 	public FetchResponse invokeCommand(String cmd, String baseUrl, ExpandoObject parameters)
-#pragma warning restore IDE1006 // Naming Styles
 	{
 		throw new NotImplementedException();
 	}
 
-#pragma warning disable IDE1006 // Naming Styles
-	public String generateApiKey()
-#pragma warning restore IDE1006 // Naming Styles
-	{
+    public String generateApiKey()
+    {
 		Int32 size = 48;
 		Byte[] data = RandomNumberGenerator.GetBytes(size);
 		String res = Convert.ToBase64String(data);
@@ -104,9 +122,7 @@ public class ScriptEnvironment
 		return res;
 	}
 
-#pragma warning disable IDE1006 // Naming Styles
 	public String toBase64(String source, int codePage, bool safe)
-#pragma warning restore IDE1006 // Naming Styles
 	{
 		var enc = Encoding.GetEncoding(codePage, new EncoderReplacementFallback(String.Empty), DecoderFallback.ReplacementFallback);
 		var bytes = enc.GetBytes(source);
@@ -116,11 +132,14 @@ public class ScriptEnvironment
 		return res;
 	}
 
-#pragma warning disable IDE1006 // Naming Styles
 	public JsValue require(String fileName, ExpandoObject prms, ExpandoObject args)
-#pragma warning restore IDE1006 // Naming Styles
 	{
-		var script = _appCodeProvider.ReadTextFile(_currentPath, fileName, false);
+		fileName = fileName.RemoveHeadSlash().AddExtension("js");
+
+        var stream = _appCodeProvider.FileStreamRO(fileName) 
+			?? throw new InvalidOperationException($"File not found '{fileName}'");
+		var sr = new StreamReader(stream);
+		var script = sr.ReadToEnd();
 
 		String code = $@"
 return (function() {{
@@ -134,6 +153,14 @@ return function(_this, prms, args) {{
 		var func = _engine.Evaluate(code);
 		return _engine.Invoke(func, this, prms, args);
 	}
+
+    private void SetCurrentUserParams(ExpandoObject dbPrms)
+	{
+		dbPrms.SetNotNull("UserId", _currentUser.Identity.Id);
+        dbPrms.SetNotNull("TenantId", _currentUser.Identity.Tenant);
+    }
 }
 
+#pragma warning restore CA1822 // Mark members as static
+#pragma warning restore IDE1006 // Naming Styles
 

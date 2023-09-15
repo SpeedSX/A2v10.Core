@@ -13,6 +13,9 @@ using A2v10.Infrastructure;
 using A2v10.Data.Interfaces;
 
 using A2v10.Web.Identity;
+using System.Collections.Generic;
+using Microsoft.Extensions.Options;
+using System.Dynamic;
 
 namespace A2v10.Platform.Web;
 public record UserIdentity : IUserIdentity
@@ -22,11 +25,16 @@ public record UserIdentity : IUserIdentity
 	public String? PersonName { get; init; }
 	public String? FirstName { get; init; }
 	public String? LastName { get; init; }
-	public Int32? Tenant { get; init; }
+	public Int32? Tenant { get; set; }
 	public String? Segment { get; init; }
 
 	public Boolean IsAdmin { get; init; }
 	public Boolean IsTenantAdmin { get; init; }
+
+	public void SetInitialTenantId(Int32 tenant)
+	{
+		Tenant = tenant;
+	}
 }
 
 public record UserState : IUserState
@@ -37,6 +45,8 @@ public record UserState : IUserState
 	// TODO: isValud???
 	public Boolean Invalid { get; set; }
 	public String? Message { get; init; }
+	public List<Guid> Modules { get; init; } = new();
+	IEnumerable<Guid> IUserState.Modules => Modules;
 }
 
 public record UserLocale : IUserLocale
@@ -53,7 +63,7 @@ public record UserLocale : IUserLocale
 public class CurrentUser : ICurrentUser, IDbIdentity
 {
 	public IUserIdentity Identity { get; private set; } = new UserIdentity();
-	public UserState State {get; private set;}
+	public UserState State { get; private set; } = new();
 	public IUserLocale Locale { get; private set; } = new UserLocale();
 
 	#region IDbIdentity
@@ -64,27 +74,26 @@ public class CurrentUser : ICurrentUser, IDbIdentity
 
 	IUserState ICurrentUser.State => State;
 
-	public Boolean IsAdminApplication { get; private set; }
+	public String CookiePrefix { get; } = String.Empty;
 
 	private readonly IHttpContextAccessor _httpContextAccessor;
 	private readonly IDataProtector _protector;
 
-	public CurrentUser(IHttpContextAccessor httpContextAccessor, IDataProtectionProvider dataProtectionProvider)
+	public CurrentUser(IHttpContextAccessor httpContextAccessor, IDataProtectionProvider dataProtectionProvider,
+		IOptions<AppOptions> options)
 	{
 		_httpContextAccessor = httpContextAccessor;
 		_protector = dataProtectionProvider.CreateProtector("State");
-		State = new UserState()
-		{
-			Invalid = true
-		};
-	}
+		var px = options?.Value?.CookiePrefix;
+		if (!String.IsNullOrEmpty(px))
+            CookiePrefix = px + '.';
+    }
 
 	public void Setup(HttpContext context)
 	{
 		SetupUserIdentity(context);
 		SetupUserState(context);
 		SetupUserLocale(context);
-		IsAdminApplication = context.Request.Path.StartsWithSegments("/admin");
 	}
 
 	void SetupUserIdentity(HttpContext context) 
@@ -106,9 +115,11 @@ public class CurrentUser : ICurrentUser, IDbIdentity
 		} 
 	}
 
+	private String CookieName => $"{CookiePrefix}{CookieNames.Identity.State}";
+
 	void SetupUserState(HttpContext context)
 	{
-		var state = context.Request.Cookies[CookieNames.Identity.State];
+		var state = context.Request.Cookies[CookieName];
 		if (!String.IsNullOrEmpty(state))
 		{
 			try
@@ -146,6 +157,17 @@ public class CurrentUser : ICurrentUser, IDbIdentity
 		StoreState();
 	}
 
+    public void AddModules(IEnumerable<Guid> modules)
+	{
+		foreach (var module in modules)
+			State.Modules.Add(module);
+        StoreState();
+    }
+
+	public void SetInitialTenantId(Int32 tenantId)
+	{
+		Identity.SetInitialTenantId(tenantId);
+	}
 	public void SetReadOnly(Boolean readOnly)
 	{
 		if (State == null)
@@ -154,10 +176,24 @@ public class CurrentUser : ICurrentUser, IDbIdentity
 		StoreState();
 	}
 
+	public ExpandoObject DefaultParams()
+	{
+		var prms = new ExpandoObject();
+		if (Identity.Id != null)
+			prms.Add("UserId", Identity.Id);
+		if (Identity.Tenant != null)
+			prms.Add("TenantId", Identity.Tenant);
+		return prms;
+	}
+
 	void StoreState()
 	{
-		var stateJson = JsonConvert.SerializeObject(State);
-		_httpContextAccessor?.HttpContext?.Response.Cookies.Append(CookieNames.Identity.State, _protector.Protect(stateJson), 
+		var stateJson = JsonConvert.SerializeObject(State, new JsonSerializerSettings()
+		{
+			NullValueHandling = NullValueHandling.Ignore,
+			DefaultValueHandling = DefaultValueHandling.Ignore,
+		});
+		_httpContextAccessor?.HttpContext?.Response.Cookies.Append(CookieName, _protector.Protect(stateJson), 
 			new CookieOptions()
 			{
 				SameSite = SameSiteMode.Strict,

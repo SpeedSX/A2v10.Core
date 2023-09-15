@@ -1,15 +1,14 @@
-﻿// Copyright © 2015-2021 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
+using System.IO;
 
 using Newtonsoft.Json;
 
-using A2v10.Data.Interfaces;
 using A2v10.Infrastructure;
-using System.IO;
 
 namespace A2v10.Platform.Web;
 public static class HostHelpers
@@ -17,7 +16,7 @@ public static class HostHelpers
 	// @Html.Raw
 	public static String AppStyleSheetsLink(this IAppCodeProvider provider)
 	{
-		var files = provider.EnumerateFiles("_assets", "*.css", false);
+		var files = provider.EnumerateAllFiles("_assets", "*.css");
 		// at least one file
 		if (files != null && files.Any())
 			return $"<link  href=\"/_shell/appstyles\" rel=\"stylesheet\" />";
@@ -27,7 +26,7 @@ public static class HostHelpers
 	// @Html.Raw
 	public static String AppScriptsLink(this IAppCodeProvider provider)
 	{
-		var files = provider.EnumerateFiles("_assets", "*.js", false);
+		var files = provider.EnumerateAllFiles("_assets", "*.js");
 		if (files != null && files.Any())
 			return $"<script type=\"text/javascript\" src=\"/_shell/appscripts\"></script>";
 		return String.Empty;
@@ -35,64 +34,55 @@ public static class HostHelpers
 
 	public static async Task<String> AppLinksAsync(this IAppCodeProvider provider)
 	{
-		String? appLinks = await provider.ReadTextFileAsync(String.Empty, "links.json", false);
-		if (appLinks != null)
+		using var stream = provider.FileStreamRO("links.json", primaryOnly: true);
+		if (stream != null)
 		{
-			// with validation
-			Object? links = JsonConvert.DeserializeObject<List<Object>>(appLinks);
-			return JsonConvert.SerializeObject(links);
+			using var sr = new StreamReader(stream);
+			var appLinks = await sr.ReadToEndAsync();
+			stream.Close();
+			if (!String.IsNullOrEmpty(appLinks))
+			{
+				// with validation
+				Object? links = JsonConvert.DeserializeObject<List<Object>>(appLinks);
+				return JsonConvert.SerializeObject(links);
+			}
 		}
 		return "[]";
 	}
 
-	public static async Task<String> CustomAppHead(this IAppCodeProvider provider)
+	public static Task<String> CustomAppHead(this IAppCodeProvider _1/*provider*/)
 	{
-		String? head = await provider.ReadTextFileAsync("_layout", "_head.html", false);
-		/* TODO:
+        /* TODO: From main module?
 		String head = provider.ReadTextFile("_layout", "_head.html");
+		String? head = await provider.ReadTextFileAsync("_layout", "_head.html", false);
 		*/
-		return String.Empty;
+        return Task.FromResult<String>(String.Empty);
 	}
 
-	public static async Task<String> CustomAppScripts(this IAppCodeProvider provider)
+	public static async Task<String> LayoutStyles(this IAppCodeProvider provider)
 	{
-		var scripts = await provider.ReadTextFileAsync("_layout", "_scripts.html", false);
-		if (scripts == null)
+		// primary only
+		using var stream = provider.FileStreamRO("_layout/_styles.html", true);
+		if (stream == null)
 			return String.Empty;
-		// TODO:
-		/*
-		String scripts = provider.ReadTextFile("_layout", "_scripts.html");
-		return scripts != null ? host.GetAppSettings(scripts) : String.Empty;
-		*/
-		return String.Empty;
+		using var rdr = new StreamReader(stream);
+		return await rdr.ReadToEndAsync();
 	}
 
-	public static String? CustomManifest(this IWebHostFilesProvider provider)
+	public static async Task<String> LayoutScripts(this IAppCodeProvider provider)
+	{
+		// primary only
+		using var stream = provider.FileStreamRO("_layout/_scripts.html", true);
+		if (stream == null)
+			return String.Empty;
+		using var rdr = new StreamReader(stream);
+		return await rdr.ReadToEndAsync();
+    }
+
+    public static String? CustomManifest(this IWebHostFilesProvider provider)
 	{
 		var manifestPath = provider.MapHostingPath("manifest.json");
 		return File.Exists(manifestPath) ? "<link rel=\"manifest\" href=\"/manifest.json\">" : null;
-	}
-
-	public static Task ProcessDbEvents(this IApplicationHost host, IDbContext dbContext)
-	{
-		// TODO:
-		throw new NotImplementedException(nameof(ProcessDbEvents));
-		//return ProcessDbEventsCommand.ProcessDbEvents(dbContext, host.CatalogDataSource, host.IsAdminMode);
-	}
-
-	public static ITypeChecker? CheckTypes(this IApplicationHost host, String path, String typesFile, IDataModel model)
-	{
-		// TODO:
-		if (!host.IsDebugConfiguration)
-			return null;
-		if (String.IsNullOrEmpty(typesFile))
-			return null;
-		return null;
-		/*
-		var tc = new TypeChecker(host.ApplicationReader, path);
-		tc.CreateChecker(typesFile, model);
-		return tc;
-		*/
 	}
 }
 

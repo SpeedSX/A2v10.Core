@@ -59,7 +59,6 @@ public class PageController : BaseController
 	}
 
 	[Route("_page/{*pathInfo}")]
-	[Route("admin/_page/{*pathInfo}")]
 	public async Task<IActionResult> Page(String pathInfo)
 	{
 		// {pagePath}/action/id
@@ -69,7 +68,6 @@ public class PageController : BaseController
 	}
 
 	[Route("_dialog/{*pathInfo}")]
-	[Route("admin/_dialog/{*pathInfo}")]
 	public async Task<IActionResult> Dialog(String pathInfo)
 	{
 		// {pagePath}/dialog/id
@@ -79,7 +77,6 @@ public class PageController : BaseController
 	}
 
 	[Route("_popup/{*pathInfo}")]
-	[Route("admin/_popup/{*pathInfo}")]
 	public Task<IActionResult> Popup(String pathInfo)
 	{
 		// {pagePath}/popup/id
@@ -119,6 +116,7 @@ public class PageController : BaseController
 			RootId = rootId,
 			IsDialog = rw.IsDialog,
 			IsIndex = rw.IsIndex,
+			IsPlain = rw.IsPlain,
 			IsSkipDataStack = rw.IsSkipDataStack,
 			Template = rw.Template,
 			Path = rw.Path,
@@ -127,8 +125,8 @@ public class PageController : BaseController
 
 		var si = await _scripter.GetModelScript(msi);
 
-		var viewName = _codeProvider.MakeFullPath(rw.Path, rw.GetView(_host.Mobile), _currentUser.IsAdminApplication);
-		var viewEngine = _viewEngineProvider.FindViewEngine(viewName);
+		var viewName = rw.GetView(_host.Mobile);
+		var viewEngine = _viewEngineProvider.FindViewEngine(rw.Path, viewName);
 
 		// render XAML
 		var ri = new RenderInfo()
@@ -136,13 +134,12 @@ public class PageController : BaseController
 			RootId = rootId,
 			FileName = viewEngine.FileName,
 			FileTitle = rw.GetView(_host.Mobile),
-			Path = rw.BaseUrl,
+			Path = rw.Path,
 			DataModel = model,
 			//TypeChecker = typeChecker,
 			CurrentLocale = null,
 			IsDebugConfiguration = _host.IsDebugConfiguration,
 			SecondPhase = secondPhase,
-			Admin = _currentUser.IsAdminApplication
 		};
 
 		var result = await viewEngine.Engine.RenderAsync(ri);

@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
 
 using A2v10.Infrastructure;
 using System.Text;
@@ -42,10 +42,9 @@ public class Dialog : RootContainer, ISupportTwoPhaseRendering
 	public Boolean ButtonOnTop { get; set; }
 	public Boolean Overflow { get; set; }
 	public DialogPlacement Placement { get; set; }
-
 	public UIElementCollection Buttons { get; set; } = new UIElementCollection();
-
 	public CollectionView? CollectionView { get; set; }
+	public DropDownMenu? HeaderMenu { get; set; }	
 
 	protected virtual void OnCreateContent(TagBuilder tag)
 	{
@@ -111,7 +110,10 @@ public class Dialog : RootContainer, ISupportTwoPhaseRendering
 		var content = new TagBuilder("div", "modal-content");
 		OnCreateContent(content);
 		if (Height != null)
+		{
 			content.MergeStyle("min-height", Height.Value);
+			content.MergeStyle("height", Height.Value);
+		}
 		Padding?.MergeStyles("padding", content);
 		content.AddCssClassBool(IsContentIsIFrame, "content-iframe"); // bug fix (3px height)
 		if (Background != BackgroundStyle.Default)
@@ -208,18 +210,44 @@ public class Dialog : RootContainer, ISupportTwoPhaseRendering
 			TitleInfo.RenderElement(context, null);
 			span.RenderEnd(context);
 		}
-		var close = new TagBuilder("button", "btnclose");
+        var close = new TagBuilder("button", "btnclose");
 		close.MergeAttribute("tabindex", "-1");
 		close.MergeAttribute("@click.prevent", "$modalClose(false)");
 		close.SetInnerText("&#x2715;");
 		close.Render(context);
 
-		RenderHelp(context);
+    	RenderHeaderMenu(context);
+        RenderHelp(context);
 
-		header.RenderEnd(context);
+        header.RenderEnd(context);
 	}
 
-	static void RenderLoadIndicator(RenderContext context)
+	void RenderHeaderMenu(RenderContext context)
+	{
+		if (HeaderMenu == null)
+			return;
+
+        DropDownDirection? dir = HeaderMenu.Direction;
+        Boolean bDropUp = (dir == DropDownDirection.UpLeft) || (dir == DropDownDirection.UpRight);
+        var wrap = new TagBuilder("div", "dropdown hlink-dd-wrapper")
+            .AddCssClass(bDropUp ? "dir-up" : "dir-down")
+            .MergeAttribute("v-dropdown", String.Empty);
+		wrap.AddCssClass("modal-header-menu");
+		wrap.RenderStart(context);
+
+		var hlink = new TagBuilder("a", "modal-menu-link");
+		hlink.MergeAttribute("href", "");
+        hlink.MergeAttribute("toggle", String.Empty);
+        hlink.RenderStart(context);
+		var icon = new TagBuilder("span", "ico ico-ellipsis-vertical");
+		icon.Render(context, TagRenderMode.Normal);
+		hlink.RenderEnd(context);	
+
+		HeaderMenu.RenderElement(context);
+		wrap.RenderEnd(context);
+    }
+
+    static void RenderLoadIndicator(RenderContext context)
 	{
 		new TagBuilder("div", "load-indicator")
 			.MergeAttribute("v-show", "$isLoading")

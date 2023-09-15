@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using A2v10.Infrastructure;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace A2v10.Platform.Web;
 public record ViewEngineDescriptor(String Extension, Type EngineType);
@@ -40,24 +41,28 @@ public class WebViewEngineProvider : IViewEngineProvider
 		_engines.Add(new ViewEngineDescriptor(extension, engineType));
 	}
 
-	public IViewEngineResult FindViewEngine(String viewName)
+	public IViewEngineResult FindViewEngine(String path, String viewName)
 	{
 		foreach (var engine in _engines)
 		{
 			String fileName = $"{viewName}{engine.Extension}";
-			if (_codeProvider.FileExists(fileName))
+			String fullPath = _codeProvider.MakePath(path, fileName);
+			if (_codeProvider.IsFileExists(fullPath))
 			{
 				if (_serviceProvider.GetService(engine.EngineType) is IViewEngine viewEngine)
 				{
 					return new ViewEngineResult
 					(
 						engine: viewEngine,
-						fileName: fileName
+						path: fullPath,
+						viewName = fileName
 					);
 				}
 			}
 		}
-		throw new InvalidReqestExecption($"View engine not found for {viewName}");
+		var locations = String.Join('\n', _engines.Select(e => $"/{path}/{viewName}{e.Extension}"));
+
+        throw new InvalidReqestExecption($"The view '{viewName}' was not found. The following locations were searched:\n{locations} ");
 	}
 }
 

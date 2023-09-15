@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
 
 using A2v10.Infrastructure;
 using System.Collections.Generic;
@@ -18,7 +18,8 @@ public enum ColumnRole
 	Default,
 	Id,
 	Number,
-	Date
+	Date,
+	CheckBox
 }
 
 [ContentProperty("Content")]
@@ -40,10 +41,10 @@ public class DataGridColumn : XamlElement
 	public String? SortProperty { get; set; }
 	public Boolean? Small { get; set; }
 	public Boolean? Bold { get; set; }
-
 	public Boolean? If { get; set; }
-
 	public ColumnRole Role { get; set; }
+	public Int32 MaxChars { get; set; }
+	public String? CheckAll { get; set; }
 
 	Boolean _noPadding;
 
@@ -67,6 +68,14 @@ public class DataGridColumn : XamlElement
 			column.MergeAttribute("sort-prop", SortProperty);
 		if (Small != null)
 			column.MergeAttribute(":small", Small.Value.ToString().ToLowerInvariant());
+		if (MaxChars != 0)
+			column.MergeAttribute(":max-chars", MaxChars);
+
+		var checkAllBind = GetBinding(nameof(CheckAll));
+		if (checkAllBind != null)
+			column.MergeAttribute("check-all", checkAllBind.Path);
+		else if (CheckAll != null)
+			throw new XamlException($"The CheckAll property must be a binding ({Content})");
 
 		var boldBind = GetBinding(nameof(Bold));
 		if (boldBind != null)
@@ -115,9 +124,9 @@ public class DataGridColumn : XamlElement
 
 		Bind? ctBind = GetBinding(nameof(ControlType));
 		if (ctBind != null)
-			column.MergeAttribute(":control-type", ctBind.Path /*!without context!*/);
+			column.MergeAttribute(":control-type", ctBind.Path /*!without context!*/, true);
 		else if (ControlType != ColumnControlType.Default)
-			column.MergeAttribute("control-type", ControlType.ToString().ToLowerInvariant());
+			column.MergeAttribute("control-type", ControlType.ToString().ToLowerInvariant(), true);
 
 		var alignProp = GetBinding(nameof(Align));
 		if (alignProp != null)
@@ -175,21 +184,38 @@ public class DataGridColumn : XamlElement
 				column.MergeAttribute("align", "right", true);
 				break;
 			case ColumnRole.Date:
+				// fit, nowrap, center
 				column.MergeAttribute(":fit", "true", true);
 				column.MergeAttribute("wrap", "no-wrap", true);
 				column.MergeAttribute("align", "center", true);
 				break;
-		}
-	}
+            case ColumnRole.CheckBox:
+				// fit, nowrap, center
+                column.MergeAttribute(":fit", "true", true);
+                column.MergeAttribute("wrap", "no-wrap", true);
+                column.MergeAttribute("align", "center", true);
+				column.MergeAttribute("control-type", "checkbox");
+                break;
+        }
+    }
 
 	void CreateEditable()
 	{
+		void CreateCheckBox()
+		{
+			var checkBox = new CheckBox();
+			checkBox.SetBinding("Value", GetBinding("Content"));
+			if (!Editable)
+				checkBox.Disabled = true;
+			Content = checkBox;
+		}
+        
 		switch (ControlType)
 		{
 			case ColumnControlType.Default:
 			case ColumnControlType.Editor:
 				if (!Editable)
-					return;
+					break;
 				var textBox = new TextBox();
 				textBox.SetBinding("Value", GetBinding("Content"));
 				textBox.SetBinding("Align", GetBinding("Align")); // dynamic
@@ -197,13 +223,12 @@ public class DataGridColumn : XamlElement
 				Content = textBox;
 				break;
 			case ColumnControlType.CheckBox:
-				var checkBox = new CheckBox();
-				checkBox.SetBinding("Value", GetBinding("Content"));
-				if (!Editable)
-					checkBox.Disabled = true;
-				Content = checkBox;
+				CreateCheckBox();
 				break;
 		}
+
+		if (Role == ColumnRole.CheckBox)
+			CreateCheckBox();
 	}
 
 	void CheckValid()
@@ -212,7 +237,7 @@ public class DataGridColumn : XamlElement
 		{
 			throw new XamlException("For editable columns the Content must be a binding");
 		}
-		if ((Content is TextBox) || (Content is Static))
+		if (Content is ValuedControl)
 		{
 			_noPadding = true;
 		}

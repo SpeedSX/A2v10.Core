@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 
 using A2v10.Infrastructure;
+using System.IO;
+using Microsoft.Extensions.Options;
 
 namespace A2v10.Platform.Web;
 
@@ -26,17 +28,22 @@ public class WebAppDataProvider : IAppDataProvider
 
 	public async Task<ExpandoObject> GetAppDataAsync()
 	{
-		var appJson = await _codeProvider.ReadTextFileAsync(String.Empty, "app.json", false);
-		if (appJson != null)
+		using var stream = _codeProvider.FileStreamRO("app.json", primaryOnly: true);
+		if (stream != null)
 		{
-			return JsonConvert.DeserializeObject<ExpandoObject>(appJson) ?? new ExpandoObject();
+			using var sr = new StreamReader(stream);
+			var appJson = await sr.ReadToEndAsync();
+			var result = JsonConvert.DeserializeObject<ExpandoObject>(appJson) ?? new ExpandoObject();
+			result.Add("appId", _codeProvider.AppId);
+			return result;
 		}
 
 		return new ExpandoObject()
 		{
 			{ "version", _appVersion.AppVersion },
 			{ "title", "A2v10.Core Web Application" },
-			{ "copyright", _appVersion.Copyright }
+			{ "copyright", _appVersion.Copyright },
+			{ "appId", _codeProvider.AppId }
 		};
 	}
 

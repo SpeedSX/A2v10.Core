@@ -1,11 +1,13 @@
-﻿// Copyright © 2022 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2022-2023 Oleksandr Kukhtin. All rights reserved.
 
 using System;
-using System.Dynamic;
 using System.IO;
+using System.Dynamic;
 using System.Threading.Tasks;
 
+using QuestPDF;
 using QuestPDF.Fluent;
+using QuestPDF.Infrastructure;
 
 using A2v10.Infrastructure;
 using A2v10.Xaml.Report;
@@ -16,29 +18,29 @@ public class PdfReportEngine : IReportEngine
 {
 	private readonly IAppCodeProvider _appCodeProvider;
 	private readonly IReportLocalizer _localizer;
-	private readonly String _rootPath;
 
 	public PdfReportEngine(IAppCodeProvider appCodeProvider, ILocalizer localizer, ICurrentUser user)
 	{
-		_appCodeProvider = appCodeProvider;
+        Settings.License ??= LicenseType.Community;
+        _appCodeProvider = appCodeProvider;
 		_localizer = new PdfReportLocalizer(user.Locale.Locale, localizer);
-		_rootPath = _appCodeProvider.MakeFullPath(String.Empty, String.Empty, false);
 	}
 
-	private Page ReadTemplate(IReportInfo reportInfo, String reportPath)
+	private Page ReadTemplate(String path)
 	{
-		using var stream = _appCodeProvider.FileStreamFullPathRO(reportPath);
+		using var stream = _appCodeProvider.FileStreamRO(path)
+			?? throw new InvalidOperationException($"File not found '{path}'");
 		return TemplateReader.ReadReport(stream);
 	}
 	public Task<IInvokeResult> ExportAsync(IReportInfo reportInfo, ExportReportFormat format)
 	{
-		String reportPath = _appCodeProvider.MakeFullPath(reportInfo.Path, $"{reportInfo.Report}.xaml", false);
-		Page page = ReadTemplate(reportInfo, reportPath);
+		var repPath = Path.Combine(reportInfo.Path, reportInfo.Report) + ".xaml";
+		Page page = ReadTemplate(repPath);
 
 		var name = reportInfo.DataModel?.Root?.Resolve(reportInfo.Name) ?? "report";
 
 		var model = reportInfo.DataModel?.Root ?? new ExpandoObject();
-		var context = new RenderContext(_rootPath, reportPath, _localizer, model, page.Code);
+		var context = new RenderContext(repPath, _localizer, model, page.Code);
 		var doc = new ReportDocument(page, context);
 
 		using MemoryStream outputStream = new();

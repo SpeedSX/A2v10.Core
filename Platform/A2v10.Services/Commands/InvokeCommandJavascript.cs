@@ -1,5 +1,6 @@
-﻿// Copyright © 2020-2021 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2020-2023 Oleksandr Kukhtin. All rights reserved.
 
+using System.IO;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -11,13 +12,11 @@ namespace A2v10.Services;
 public class InvokeCommandJavascript : IModelInvokeCommand
 {
 	private readonly IAppCodeProvider _appCodeProvider;
-	private readonly ICurrentUser _currentUser;
 	private readonly JavaScriptEngine _engine;
 
 	public InvokeCommandJavascript(IServiceProvider service)
 	{
 		_appCodeProvider = service.GetRequiredService<IAppCodeProvider>();
-		_currentUser = service.GetRequiredService<ICurrentUser>();
 		_engine = new JavaScriptEngine(service);
 	}
 
@@ -27,9 +26,13 @@ public class InvokeCommandJavascript : IModelInvokeCommand
 		if (String.IsNullOrEmpty(command.File))
 			throw new DataServiceException("'file' must be specified for the javascript command");
 		String file = command.File.AddExtension("js");
-		var text = await _appCodeProvider.ReadTextFileAsync(command.Path, file, _currentUser.IsAdminApplication);
-		if (text == null)
+		String pathToRead = Path.Combine(command.Path, file);	
+		using var stream = _appCodeProvider.FileStreamRO(pathToRead) ??
 			throw new DataServiceException($"Script not found '{file}'");
+        using var sr = new StreamReader(stream);
+		var text = await sr.ReadToEndAsync(); 
+		if (String.IsNullOrEmpty(text))
+			throw new DataServiceException($"Script is empty '{file}'");
 		_engine.SetPath(command.Path);
 		var result = _engine.Execute(text, parameters, command.Args ?? new ExpandoObject());
 		return InvokeResult.JsonFromObject(result);

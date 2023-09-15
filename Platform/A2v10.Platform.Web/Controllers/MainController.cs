@@ -11,6 +11,9 @@ using Microsoft.Extensions.Options;
 
 using A2v10.Infrastructure;
 using A2v10.Web.Identity;
+using A2v10.Module.Infrastructure;
+using Microsoft.AspNetCore.Diagnostics;
+using System.Diagnostics;
 
 namespace A2v10.Platform.Web.Controllers;
 
@@ -23,14 +26,19 @@ public class MainController : Controller
 	private readonly IDataService _dataService;
 	private readonly IApplicationTheme _appTheme;
 	private readonly IAppCodeProvider _codeProvider;
+	private readonly ILicenseManager _licenseManager;
+	private readonly ICurrentUser _currentUser;
 
 	public MainController(IDataService dataService, IOptions<AppOptions> appOptions, 
-		IApplicationTheme appTheme, IAppCodeProvider codeProvider)
+		IApplicationTheme appTheme, IAppCodeProvider codeProvider, ILicenseManager licenseManager,
+		ICurrentUser currentUser)
 	{
 		_appOptions = appOptions.Value;
 		_dataService = dataService;
 		_appTheme = appTheme;
 		_codeProvider = codeProvider;
+		_licenseManager = licenseManager;
+		_currentUser = currentUser;
 	}
 
 	static String? NormalizePathInfo(String? pathInfo)
@@ -47,8 +55,11 @@ public class MainController : Controller
 	[HttpGet]
 	public async Task<IActionResult> Default(String? pathInfo)
 	{
-		if (IsStaticFile())
+		if (IsStaticFile() || (pathInfo != null && pathInfo.StartsWith('_')))
 			return NotFound();
+
+		if (!await CheckLicenseAsync())
+			return new EmptyResult();	
 
 		var layoutDescr = await _dataService.GetLayoutDescriptionAsync(NormalizePathInfo(pathInfo));
 
@@ -62,19 +73,54 @@ public class MainController : Controller
 			ModelStyles = layoutDescr?.ModelStyles,
 			ModelScripts = layoutDescr?.ModelScripts,
 			HasNavPane = HasNavPane(),
+			HasProfile = HasProfile(),
 			Theme = _appTheme.MakeTheme()
 		};
-		ViewBag.__Minify = "min.";
+		ViewBag.__Minify = ""; // "min.";
 
-		if (pathInfo != null && pathInfo.StartsWith("admin", StringComparison.OrdinalIgnoreCase))
-			return View("Default.admin", viewModel);
+		if (!String.IsNullOrEmpty(_appOptions.Layout))
+			return View($"Default.{_appOptions.Layout}", viewModel);
+
 		return View(viewModel);
 	}
 
-	private Boolean HasNavPane()
+
+	[Route("main/error")]
+	[HttpGet]
+	[AllowAnonymous]
+	public IActionResult Error(String? pathInfo)
 	{
-		String path = _codeProvider.MakeFullPath("_navpane", "model.json", false);
-		return _codeProvider.FileExists(path);
+        var RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
+
+        var exceptionHandlerPathFeature =
+            HttpContext.Features.Get<IExceptionHandlerPathFeature>();
+
+		String? ExceptionMessage = String.Empty;
+
+        if (exceptionHandlerPathFeature?.Error is FileNotFoundException)
+        {
+            ExceptionMessage = "The file was not found.";
+        }
+		else if (exceptionHandlerPathFeature?.Error is Exception ex)
+		{
+			ExceptionMessage = ex.Message;
+		}
+
+        if (exceptionHandlerPathFeature?.Path == "/")
+        {
+            ExceptionMessage ??= string.Empty;
+            ExceptionMessage += " Page: Home.";
+        }
+        return View();
+	}
+
+    private Boolean HasNavPane()
+	{
+		return _codeProvider.IsFileExists("_navpane/model.json");
+	}
+	private Boolean HasProfile()
+	{
+		return _codeProvider.IsFileExists("_profile/model.json");
 	}
 	public Boolean IsStaticFile()
 	{
@@ -82,7 +128,17 @@ public class MainController : Controller
 		if (path == null)
 			return false;
 		return path.EndsWith(".css", StringComparison.OrdinalIgnoreCase) ||
-			path.EndsWith(".js", StringComparison.OrdinalIgnoreCase);
+			path.EndsWith(".ico", StringComparison.OrdinalIgnoreCase) ||
+			path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
+			path.EndsWith(".map", StringComparison.OrdinalIgnoreCase);
 	}
 
+	private async Task<Boolean> CheckLicenseAsync()
+	{
+		if (!_codeProvider.HasLicensedModules)
+			return true;
+		return await _licenseManager.VerifyLicensesAsync(
+			_currentUser.Identity.Segment, _currentUser.Identity.Tenant, 
+			_codeProvider.LicensedModules);
+	}
 }

@@ -22,6 +22,7 @@ public interface IBlobInfo
 	Guid Token { get; }
 	Byte[]? Stream { get; }
 	String? BlobName { get; }
+	Boolean CheckToken { get; }
 }
 
 public interface IBlobUpdateInfo
@@ -42,11 +43,19 @@ public interface IBlobUpdateOutput
 
 }
 
+public interface ISignalResult
+{
+	Int64 UserId { get; }
+	String Message { get; }
+	ExpandoObject? Data { get; }
+}
+
 public interface IInvokeResult
 {
 	Byte[] Body { get; }
 	String ContentType { get; }
 	String? FileName { get; }
+	ISignalResult? Signal { get; } 
 }
 
 public interface ILayoutDescription
@@ -55,23 +64,29 @@ public interface ILayoutDescription
 	String? ModelStyles { get; }
 }
 
+public interface ISaveResult
+{
+	String Data { get; }
+	ISignalResult? SignalResult { get; }
+
+}
+
 public interface IDataService
 {
 	Task<IDataLoadResult> LoadAsync(UrlKind kind, String baseUrl, Action<ExpandoObject> setParams);
 	Task<IDataLoadResult> LoadAsync(String baseUrl, Action<ExpandoObject> setParams);
 	Task<IBlobInfo?> LoadBlobAsync(UrlKind kind, String baseUrl, Action<ExpandoObject> setParams, String? suffix = null);
 	Task<IBlobUpdateOutput> SaveBlobAsync(UrlKind kind, String baseUrl, Action<IBlobUpdateInfo> setBlob, String? suffix = null);
-
-	Task<String> ReloadAsync(String baseUrl, Action<ExpandoObject> setParams);
-	
+    Task<ExpandoObject> SaveFileAsync(String baseUrl, Action<IBlobUpdateInfo> setBlob, Action<ExpandoObject>? setParams);
+    Task<String> ReloadAsync(String baseUrl, Action<ExpandoObject> setParams);	
 	Task<String> LoadLazyAsync(String baseUrl, Object Id, String propertyName, Action<ExpandoObject> setParams);
 	Task<String> LoadLazyAsync(ExpandoObject queryData, Action<ExpandoObject> setParams);
 
 	Task<String> ExpandAsync(String baseUrl, Object id, Action<ExpandoObject> setParams);
 	Task<String> ExpandAsync(ExpandoObject queryData, Action<ExpandoObject> setParams);
 
-	Task<String> SaveAsync(String baseUrl, ExpandoObject data, Action<ExpandoObject> setParams);
-	Task DbRemoveAsync(String baseUrl, Object Id, String propertyName, Action<ExpandoObject> setParams);
+	Task<ISaveResult> SaveAsync(String baseUrl, ExpandoObject data, Action<ExpandoObject> setParams);
+	Task DbRemoveAsync(String baseUrl, Object Id, String? propertyName, Action<ExpandoObject> setParams);
 
 	Task<IInvokeResult> InvokeAsync(String baseUrl, String command, ExpandoObject? data, Action<ExpandoObject> setParams);
 	Byte[] Html2Excel(String html);

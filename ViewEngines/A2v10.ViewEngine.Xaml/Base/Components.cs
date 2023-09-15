@@ -1,10 +1,12 @@
-﻿// Copyright © 2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2022-2023 Alex Kukhtin. All rights reserved.
 
-using A2v10.Infrastructure;
-using Microsoft.Extensions.DependencyInjection;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+
+using Microsoft.Extensions.DependencyInjection;
+
+using A2v10.Infrastructure;
 
 namespace A2v10.Xaml;
 
@@ -32,7 +34,7 @@ public class Components : MarkupExtension
 			throw new XamlException("The 'Components' markup extension can only be used for properties that are of type 'ComponentDictionary'");
 		if (serviceProvider.GetService(typeof(IUriContext)) is IUriContext root && root.BaseUri != null)
 		{
-			String baseFileName = root.BaseUri.PathAndQuery;
+			String baseFileName = root.BaseUri.ToString();
 			return Load(baseFileName, serviceProvider);
 		}
 		return null;
@@ -40,31 +42,26 @@ public class Components : MarkupExtension
 
 	Object? Load(String baseFileName, IServiceProvider serviceProvider)
 	{
-		var appReader = serviceProvider.GetRequiredService<IAppCodeProvider>();
-
-		String? basePath = Path.GetDirectoryName(baseFileName);
-		if (basePath == null)
+        if (String.IsNullOrEmpty(Pathes))
+            return null;
+        
+        String basePath = Path.GetDirectoryName(baseFileName) ??
 			throw new XamlException("Invalid Base path");
-		if (appReader == null)
-			throw new XamlException("Invalid ApplicationReader");
 
-		if (String.IsNullOrEmpty(Pathes))
-			return null;
 		var dict = new ComponentDictionary();
 		foreach (var path in Pathes.Split(','))
-			dict.Append(LoadOneFile(serviceProvider, appReader, basePath, path));
+			dict.Append(LoadOneFile(serviceProvider, basePath, path));
 		return dict;
 	}
 
-	static ComponentDictionary LoadOneFile(IServiceProvider serviceProvider, IAppCodeProvider appReader, String basePath, String path)
+	static ComponentDictionary LoadOneFile(IServiceProvider serviceProvider, String basePath, String path)
 	{
-		String targetPath = appReader.MakeFullPath(basePath, path, false) + ".xaml";
-		if (!appReader.FileExists(targetPath))
-			throw new XamlException($"File not found {path}");
+		String targetPath = Path.Combine(basePath, path) + ".xaml";
+		targetPath= Path.GetRelativePath(".", targetPath);
 		var xamPartProvider = serviceProvider.GetRequiredService<IXamlPartProvider>();
-		var x = xamPartProvider.GetXamlPart(targetPath);
-		if (x is ComponentDictionary dict)
+		var xmlPart = xamPartProvider.GetXamlPart(targetPath);
+		if (xmlPart is ComponentDictionary dict)
 			return dict;
-		throw new XamlException("Invalid ApplicationReader");
+		throw new XamlException("Root element is not a ComponentDictionary");
 	}
 }

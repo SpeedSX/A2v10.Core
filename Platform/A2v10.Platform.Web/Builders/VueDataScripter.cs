@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2022 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Collections.Generic;
@@ -130,9 +130,13 @@ public class VueDataScripter : IDataScripter
 		_currentUser = currentUser;
 	}
 
-	public String CreateDataModelScript(IDataModel? model)
+	public String CreateDataModelScript(IDataModel? model, Boolean isPlain)
 	{
-		return model != null ? model.CreateScript(this) : CreateEmptyStript();
+		if (model == null) 
+			return CreateEmptyStript();
+		if (isPlain)
+			return CreatePlainScript();
+		return model.CreateScript(this);
 	}
 
 	public String CreateScript(IDataHelper helper, IDictionary<String, Object?>? sys, IDictionary<String, IDataMetadata> meta)
@@ -147,6 +151,24 @@ public class VueDataScripter : IDataScripter
 		sb.Append(SetModelInfo(helper, sys));
 		sb.AppendLine("return root;}");
 		return sb.ToString();
+	}
+
+	static String CreatePlainScript()
+	{
+		// as empty 
+		return @"
+function modelData(template, data) {
+	const cmn = require('std:datamodel');
+	function TRoot(source, path, parent) { cmn.createObject(this, source, path, parent);}
+	cmn.defineObject(TRoot, { props: { } }, false);
+	cmn.implementRoot(TRoot, template, {TRoot});
+	let root = new TRoot(data);
+	cmn.setModelInfo(root, {}, rawData); 
+	if (template.loaded)
+		template.loaded(rawData);
+	return root;
+}
+";
 	}
 
 	static String CreateEmptyStript()
@@ -176,10 +198,10 @@ function modelData(template, data) {
 				val = bVal ? "true" : "false";
 			else if (val is String)
 				val = $"'{val}'";
-			else if (val is Object valObj)
-				val = JsonConvert.SerializeObject(valObj);
 			else if (val is DateTime dateTimeObj)
 				val = helper.DateTime2StringWrap(dateTimeObj);
+			else if (val is Object valObj)
+				val = JsonConvert.SerializeObject(valObj);
 			list.Add($"'{k.Key}': {val}");
 		}
 		return $"cmn.setModelInfo(root, {list.ToJsonObject()}, rawData);";
@@ -399,12 +421,10 @@ function modelData(template, data) {
 				continue;
 			if (_modulesWritten.Contains(moduleName))
 				continue;
-			var fileName = moduleName.AddExtension("js");
-			String filePath = _codeProvider.MakeFullPath(String.Empty, fileName.RemoveHeadSlash(), _currentUser.IsAdminApplication);
-			if (!_codeProvider.FileExists(filePath))
-				throw new FileNotFoundException(filePath);
+			var fileName = moduleName.RemoveHeadSlash().AddExtension("js");
 
-			using var stream = _codeProvider.FileStreamFullPathRO(filePath);
+			using var stream = _codeProvider.FileStreamRO(fileName) 
+				?? throw new InvalidOperationException($"File not found '{fileName}'");
 			using var rdr = new StreamReader(stream);
 			String moduleText = rdr.ReadToEnd();
 
@@ -517,9 +537,13 @@ function modelData(template, data) {
 		{
 			if (msi.Path == null)
 				throw new InvalidOperationException("Model.Path is null");
-			fileTemplateText = await _codeProvider.ReadTextFileAsync(msi.Path, $"{msi.Template}.js", _currentUser.IsAdminApplication);
+			var pathToRead = _codeProvider.MakePath(msi.Path, $"{msi.Template}.js");
+            using var stream = _codeProvider.FileStreamRO(pathToRead)
+                ?? throw new FileNotFoundException($"Template file '{pathToRead}' not found.");
+            using var sr = new StreamReader(stream);
+			fileTemplateText = await sr.ReadToEndAsync(); 
 			if (fileTemplateText == null)
-				throw new FileNotFoundException($"Template file '{Path.Combine(msi.Path, $"{msi.Template}.js").Replace('\\', '/')}' not found.");
+				throw new FileNotFoundException($"Template file '{pathToRead}' not found.");
 			AddRequiredModules(sbRequired, fileTemplateText);
 			templateText = CreateTemplateForWrite(Localize(fileTemplateText));
 		}
@@ -536,7 +560,7 @@ function modelData(template, data) {
 		modelFunc.Replace("$(RequiredModules)", sbRequired?.ToString());
 		modelFunc.Replace("$(TemplateText)", Localize(templateText));
 		modelFunc.Replace("$(DataModelText)", dataModelText);
-		String modelScript = CreateDataModelScript(msi.DataModel);
+		String modelScript = CreateDataModelScript(msi.DataModel, msi.IsPlain);
 		modelFunc.Replace("$(ModelScript)", modelScript);
 
 		header.Replace("$(CurrentModule)", modelFunc.ToString());
@@ -569,10 +593,12 @@ function modelData(template, data) {
 			throw new InvalidProgramException("ModelScriptInfo.Path is null");
 		if (msi.Template != null)
 		{
-			String? fileTemplateText = await _codeProvider.ReadTextFileAsync(msi.Path, msi.Template + ".js", _currentUser.IsAdminApplication);
-			if (fileTemplateText == null)
-				throw new FileNotFoundException($"File not found. '{Path.Combine(msi.Path, msi.Template)}'");
-			sbRequired = new StringBuilder();
+			var fileTemplatePath = _codeProvider.MakePath(msi.Path, msi.Template + ".js");
+			using Stream stream = _codeProvider.FileStreamRO(fileTemplatePath)
+				?? throw new FileNotFoundException($"File not found. '{fileTemplatePath}'");
+			using var sr = new StreamReader(stream);
+			var fileTemplateText = await sr.ReadToEndAsync();
+            sbRequired = new StringBuilder();
 			AddRequiredModules(sbRequired, fileTemplateText);
 			templateText = CreateTemplateForWrite(Localize(fileTemplateText));
 		}

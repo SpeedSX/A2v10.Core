@@ -1,9 +1,9 @@
-﻿// Copyright © 2015-2021 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
 
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace A2v10.Services.Interop.ExportTo;
+namespace A2v10.Services.Interop;
 
 public enum CellKind
 {
@@ -30,12 +30,14 @@ public class ExCell
 
 	static String NormalizeNumber(String number, IFormatProvider format)
 	{
+		if (String.IsNullOrEmpty(number))
+			return String.Empty;
 		if (Decimal.TryParse(number, NumberStyles.Number, format, out Decimal result))
 			return result.ToString(CultureInfo.InvariantCulture);
 		if (number.IndexOf(".") != -1)
-			return new Regex(@"[\s,]").Replace(number, String.Empty);
+			return Regex.Replace(number, @"[\s,]", String.Empty);
 		else
-			return new Regex(@"[\s]").Replace(number, String.Empty).Replace(",", ".");
+			return Regex.Replace(number, @"[\s]", String.Empty).Replace(",", ".");
 	}
 
 	static String NormalizeDate(String text)

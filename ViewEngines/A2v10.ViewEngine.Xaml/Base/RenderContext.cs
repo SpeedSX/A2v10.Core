@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
 
 using A2v10.Data.Interfaces;
 using A2v10.Infrastructure;
@@ -238,7 +238,7 @@ public class RenderContext
 		return GetNormalizedPathInternal(path, isWrapped);
 	}
 
-	internal String GetTypedNormalizedPath(String? path, TypeCheckerTypeCode typeCode, Boolean isWrapped = false)
+	internal String GetTypedNormalizedPath(String? path, TypeCheckerTypeCode _1/*typeCode*/, Boolean isWrapped = false)
 	{
 		// check for invert
 		path ??= String.Empty;
@@ -281,6 +281,7 @@ public class RenderContext
 		return result;
 	}
 
+	/*
 	String GetExpressionForChecker(String path)
 	{
 		if (_stackScope.Count == 0)
@@ -290,6 +291,7 @@ public class RenderContext
 			return parent;
 		return $"{parent}.{path}";
 	}
+	*/
 
 	internal String GetEmptyPath()
 	{

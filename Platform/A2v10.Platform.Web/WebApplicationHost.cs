@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Dynamic;
@@ -33,38 +33,9 @@ public class WebApplicationHost : IApplicationHost
 
 	public Boolean IsDebugConfiguration => _appOptions.Environment.IsDebug;
 
-	public Boolean IsUsePeriodAndCompanies => _appSettings.GetValue<Boolean>("custom");
-	public Boolean IsRegistrationEnabled => _appSettings.GetValue<Boolean>("registration");
-	public Boolean IsDTCEnabled => _appSettings.GetValue<Boolean>("enableDTC");
-
 	public Boolean Mobile { get; private set; }
 
-	public Boolean IsAdminMode => false;
-
-	//public String AppDescription => throw new NotImplementedException();
-
-	//public String AppHost => throw new NotImplementedException();
-	//public String UserAppHost => throw new NotImplementedException();
-
-	//public String SupportEmail => throw new NotImplementedException();
-
-	//public String HelpUrl => throw new NotImplementedException();
-
-	//public String HostingPath => throw new NotImplementedException();
-	//public String SmtpConfig => throw new NotImplementedException();
-
-	//public String ScriptEngine => throw new NotImplementedException();
-
-	public Boolean IsAdminAppPresent => true /*TODO:*/;
-
-
-	public String? CatalogDataSource => IsMultiTenant ? "Catalog" : null;
 	public String? TenantDataSource => String.IsNullOrEmpty(_currentUser.Identity.Segment) ? null : _currentUser.Identity.Segment;
-
-	public void CheckIsMobile(string host)
-	{
-		throw new NotImplementedException();
-	}
 
 	public String? GetAppSettings(String? source)
 	{
@@ -101,7 +72,8 @@ public class WebApplicationHost : IApplicationHost
 		{
 			var eo = new ExpandoObject();
 			foreach (var v in valObj.GetChildren())
-				eo.Add(v.Key, v.Value);
+				if (v != null && v.Value != null)
+					eo.Add(v.Key, v.Value);
 			return eo;
 		}
 		throw new InvalidOperationException($"Configuration parameter 'appSettings/{key}' not defined");

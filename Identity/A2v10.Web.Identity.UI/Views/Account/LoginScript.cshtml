@@ -1,8 +1,10 @@
-﻿@inject ILocalizer _localizer
+﻿@inject ILocalizer _loc
 @model LoginViewModel
 
 "use strict";
 (function() {
+
+const validEmail = window.__validEmail;
 
 new Vue({
 el:"#app",
@@ -11,15 +13,25 @@ data: {
 	password:'',
 	rememberMe: true,
 	submitted: false,
-	emailError: '',
-	serverError: ''
+	serverError: '',
+	returnUrl: '@Model?.ReturnUrl'
 },
 computed: {
-	validEmail() {
-		return true;
+	invalidEmail() {
+		if (!this.submitted) return false;
+		return !!this.emailError;
 	},
-	validPassword() {
-		return true;
+	invalidPassword() {
+		if (!this.submitted) return false;
+		return !this.password;
+	},
+	emailError() {
+		if (!this.submitted) return '';
+		if (!this.email) return '@Html.Raw(_loc["EnterEMail"])';
+		if (!validEmail(this.email)) return '@Html.Raw(_loc["InvalidEMail"])';
+	},
+	valid() {
+		return !this.invalidEmail && !this.invalidPassword;
 	}
 },
 methods: {
@@ -29,11 +41,40 @@ methods: {
 	onPwdEnter: function(ev) {
 		this.submit();
 	},
+	success(code) {
+		switch (code) {
+			case 'SetPassword':
+				alert("SetPassword yet not implemented");
+				break;
+		}
+	},
+	fail(code) {
+		switch (code) {
+			case 'AntiForgery':
+				this.serverError = '@Html.Raw(_loc["AntiForgery"])';
+				break;
+			case 'Failed':
+				this.serverError = '@Html.Raw(_loc["InvalidLoginError"])';
+				break;
+			case 'Lockedout':
+				this.serverError = '@Html.Raw(_loc["UserLockuotError"])';
+				break;
+			case 'EmailNotConfirmed':
+				this.serverError = '@Html.Raw(_loc["EmailNotConfirmed"])';
+				break;
+			default:
+				this.serverError = code;
+				break;
+		}
+	},
 	async submit() {
+		this.submitted = true;
+		if (!this.valid) return;
 		let formData = new URLSearchParams();
 		formData.append('Login', this.email);
 		formData.append('Password', this.password);
 		formData.append('RememberMe', this.rememberMe);
+		formData.append('ReturnUrl', this.returnUrl);
 		formData.append('__RequestVerificationToken', '@Model?.RequestToken');
 		let resp = await fetch('/account/login', {
 			method: 'POST',
@@ -41,8 +82,13 @@ methods: {
 		});
 		if (resp.redirected)
 			window.location.assign(resp.url);
-		else if (!resp.ok)
-			alert('invalid login or password');
+		else if (resp.ok) {
+			let result = await resp.json();
+			if (result.success)
+				this.success(result.message);
+			else
+				this.fail(result.message);
+		}
 	}
 }
 });

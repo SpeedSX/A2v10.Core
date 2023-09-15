@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
 
 
 using Microsoft.Extensions.DependencyInjection;
@@ -11,11 +11,12 @@ public class ModelJsonBase : IModelBase
 	protected ModelJson? _parent;
 	protected ModelJson Parent => _parent ?? throw new ModelJsonException("Parent is null");
 
-	public String? Source;
-	public String? Schema;
-	public String? Model;
+	public String? Source { get; init; }
+	public String? Schema { get; init; }
+	public String? Model { get; init; }	
+	public Boolean Signal { get; init; }
 
-	public Int32 CommandTimeout;
+	public Int32 CommandTimeout { get; init; }
 
 	public ExpandoObject? Parameters { get; set; }
 
@@ -37,8 +38,15 @@ public class ModelJsonBase : IModelBase
 			throw new ModelJsonException("The model is empty (Load))");
 		return $"[{CurrentSchema}].[{cm}.Load]";
 	}
+    public virtual String UpdateProcedure()
+    {
+        var cm = CurrentModel;
+        if (String.IsNullOrEmpty(cm))
+            throw new ModelJsonException("The model is empty (Update))");
+        return $"[{CurrentSchema}].[{cm}.Update]";
+    }
 
-	public String Path => Parent.LocalPath;
+    public String Path => Parent.LocalPath;
 	public String BaseUrl => Parent.BaseUrl;
 
 	public virtual ExpandoObject CreateParameters(IPlatformUrl url, Object? id,  Action<ExpandoObject>? setParams = null, IModelBase.ParametersFlags flags = IModelBase.ParametersFlags.None)
@@ -82,6 +90,7 @@ public class ModelJsonViewBase : ModelJsonBase
 	public Boolean Index { get; set; }
 
 	public Boolean SkipDataStack { get; set; }
+	public Boolean Plain { get; set; }
 	public Boolean Copy { get; set; }
 
 	public ModelJsonMerge? Merge { get; set; }
@@ -97,24 +106,26 @@ public class ModelJsonViewBase : ModelJsonBase
 public class ModelJsonBlob : ModelJsonViewBase, IModelBlob
 {
 	public String? Key { get; init; }
-	public String? Id { get; init; }
+	public String? Id => _parent?.Id;
 	public String? Suffix { get; init; }
-	public String? Procedure { get; init; }
+    public String? OutputFileName { get; init; }
+    public String? ClrType { get; init; }
+    public Boolean Zip { get; init; }
+    public ModelBlobType Type { get; init; }
+	public ModelParseType Parse { get; init; }
 
 	public override String LoadProcedure()
 	{
-		if (!String.IsNullOrEmpty(Procedure))
-			return Procedure;
-		var suffix = Suffix ?? "Load";
-		return $"[{Schema}].[{Model}.{Key}.{suffix}]";
+		var strSuffix = Suffix ?? "Load";
+		var strKey = Key != null ? $"{Key}." : String.Empty;
+		return $"[{CurrentSchema}].[{CurrentModel}.{strKey}{strSuffix}]";
 	}
 
-    public String UpdateProcedure()
+    public override String UpdateProcedure()
     {
-        if (!String.IsNullOrEmpty(Procedure))
-            return Procedure;
-        var suffix = Suffix ?? "Update";
-        return $"[{Schema}].[{Model}.{Key}.{suffix}]";
+        var strSuffix = Suffix ?? "Update";
+        var strKey = Key != null ? $"{Key}." : String.Empty;
+        return $"[{CurrentSchema}].[{CurrentModel}.{strKey}{strSuffix}]";
     }
 }
 
@@ -132,7 +143,7 @@ public class ModelJsonView : ModelJsonViewBase, IModelView
 	public virtual Boolean IsDialog => false;
 	public Boolean IsIndex => Index;
 	public Boolean IsSkipDataStack => SkipDataStack;
-
+	public Boolean IsPlain => Plain;
 	public Boolean Indirect { get; init; }
 	public String? Target { get; init; }
 	public String? TargetId { get; init; }
@@ -141,6 +152,15 @@ public class ModelJsonView : ModelJsonViewBase, IModelView
 	public List<String>? Scripts { get; init; } 
 	public List<String>? Styles { get; init; }
 
+	public String? SqlTextKey()
+	{
+		var cm = CurrentModel;
+		if (cm == null)
+			return null;
+		if (cm.StartsWith("@sql:"))
+			return cm[5..];
+		return null;
+	}
 	public String GetView(Boolean mobile)
 	{
 		if (mobile && !String.IsNullOrEmpty(ViewMobile))
@@ -168,7 +188,7 @@ public class ModelJsonView : ModelJsonViewBase, IModelView
 		return $"[{CurrentSchema}].[{cm}.{action}]";
 	}
 
-	public String DeleteProcedure(String propName)
+	public String DeleteProcedure(String? propName)
 	{
 		var cm = CurrentModel;
 		if (!String.IsNullOrEmpty(propName))
@@ -192,7 +212,7 @@ public class ModelJsonView : ModelJsonViewBase, IModelView
 		return $"[{CurrentSchema}].[{cm}.{propName}]";
 	}
 
-	public String UpdateProcedure()
+	public override String UpdateProcedure()
 	{
 		if (Index)
 			throw new ModelJsonException($"Could not update index model '{CurrentModel}'");
@@ -206,10 +226,6 @@ public class ModelJsonView : ModelJsonViewBase, IModelView
 public class ModelJsonDialog : ModelJsonView
 {
 	public override Boolean IsDialog => true;
-}
-
-public class ModelJsonFile : ModelJsonBase
-{
 }
 
 public enum ModelCommandType
@@ -228,7 +244,8 @@ public enum ModelCommandType
 	script,
 	invokeTarget,
 	// new
-	csharp
+	csharp,
+	signal
 }
 
 public class ModelJsonCommand : ModelJsonBase, IModelCommand
@@ -240,7 +257,6 @@ public class ModelJsonCommand : ModelJsonBase, IModelCommand
 	public Boolean Async { get; init; }
 	public Boolean DebugOnly { get; init; } /*TODO: Implement me*/
 	public ExpandoObject? Args { get; init; }
-
 	public override String LoadProcedure()
 	{
 		if (String.IsNullOrEmpty(Procedure))
@@ -312,6 +328,8 @@ public class ModelJson
 	private String? _baseUrl;
 	private String? _id;
 
+	internal String? Id => _id;
+
 	#region JSON
 	public String? Source { get; init; }
 	public String? Schema { get; init; }
@@ -320,7 +338,7 @@ public class ModelJson
 	public Dictionary<String, ModelJsonView> Actions { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<String, ModelJsonDialog> Dialogs { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<String, ModelJsonView> Popups { get; init;  } = new(StringComparer.OrdinalIgnoreCase);
-	public Dictionary<String, ModelJsonFile> Files { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+	public Dictionary<String, ModelJsonBlob> Files { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<String, ModelJsonCommand> Commands { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<String, ModelJsonReport> Reports { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 	#endregion
@@ -367,7 +385,6 @@ public class ModelJson
 	{
 		var blob = new ModelJsonBlob()
 		{
-			Id = _id,
 			Schema = this.Schema,
 			Source = this.Source,
 			Model = this.Model,
@@ -380,19 +397,9 @@ public class ModelJson
 
 	public ModelJsonBlob GetFile(String key)
 	{
-		if (!Files.TryGetValue(key, out ModelJsonFile? file))
+		if (!Files.TryGetValue(key, out ModelJsonBlob? file))
 			throw new ModelJsonException($"File: {key} not found");
-
-		var blob = new ModelJsonBlob()
-		{
-			Id = _id,
-			Schema = this.Schema,
-			Source = this.Source,
-			Procedure = file.LoadProcedure()
-		};
-		blob.SetParent(this);
-		return blob;
-
+		return file;
 	}
 
 	public ModelJsonView GetPopup(String key)

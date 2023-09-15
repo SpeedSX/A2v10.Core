@@ -9,9 +9,28 @@ using Microsoft.AspNetCore.Identity;
 
 using A2v10.Web.Identity;
 using Microsoft.Extensions.Configuration;
-
 public static class ServicesExtensions
 {
+	public static void ConfigureDefaultIdentityOptions(IdentityOptions options)
+	{
+		var lockout = options.Lockout;
+		lockout.MaxFailedAccessAttempts = 5;
+
+		var pwd = options.Password;
+		pwd.RequireDigit = false;
+		pwd.RequiredLength = 6;
+		pwd.RequireLowercase = false;
+		pwd.RequireUppercase = false;
+		pwd.RequireNonAlphanumeric = false;
+
+		var si = options.SignIn;
+		si.RequireConfirmedEmail = true;
+		si.RequireConfirmedAccount = true;
+		si.RequireConfirmedPhoneNumber = false;
+
+		var us = options.User;
+		us.RequireUniqueEmail = true;
+	}
 	public static IServiceCollection AddPlatformIdentityCore<T>(this IServiceCollection services,
 		Action<IdentityOptions>? identityOptions = null) where T : struct
 	{
@@ -22,22 +41,26 @@ public static class ServicesExtensions
 			else
 			{
 				// default behaviour
-				options.User.RequireUniqueEmail = true;
-				options.Lockout.MaxFailedAccessAttempts = 5;
-				options.SignIn.RequireConfirmedEmail = true;
-				options.Password.RequiredLength = 6;
+				ConfigureDefaultIdentityOptions(options);
 			}
 		})
 		.AddUserManager<UserManager<AppUser<T>>>()
 		.AddSignInManager<SignInManager<AppUser<T>>>()
+		//.AddRoles<AppRole<T>>() /*TODO*/
 		.AddDefaultTokenProviders(); // for change password, email & phone validation
 
-		services.AddScoped<AppUserStore<T>>()
+        services.AddScoped<AppUserStore<T>>()
 		.AddScoped<IUserStore<AppUser<T>>>(s => s.GetRequiredService<AppUserStore<T>>())
 		.AddScoped<IUserLoginStore<AppUser<T>>>(s => s.GetRequiredService<AppUserStore<T>>())
 		.AddScoped<IUserClaimStore<AppUser<T>>>(s => s.GetRequiredService<AppUserStore<T>>())
+		//.AddScoped<IUserRoleStore<AppUser<T>>>(s => s.GetRequiredService<AppUserStore<T>>())
 		.AddScoped<ISecurityStampValidator, SecurityStampValidator<AppUser<T>>>()
 		.AddScoped<ISystemClock, SystemClock>();
+
+		/* 
+		services.AddScoped<AppRoleStore<T>>()
+			.AddScoped<IRoleStore<AppRole<T>>>(s => s.GetRequiredService<AppRoleStore<T>>());
+		*/
 		return services;
 	}
 
@@ -87,8 +110,15 @@ public static class ServicesExtensions
 				o.Cookie.SameSite = SameSiteMode.Strict;
 				o.ExpireTimeSpan = TimeSpan.FromMinutes(5);
 			}
-		);
-		return builder;
+		).
+		AddCookie(IdentityConstants.TwoFactorRememberMeScheme, o =>
+		{
+            o.Cookie.Name = px + IdentityConstants.TwoFactorRememberMeScheme;
+            o.Cookie.SameSite = SameSiteMode.Strict;
+            o.ExpireTimeSpan = TimeSpan.FromDays(30);
+        });
+
+        return builder;
 	}
 
 
@@ -109,7 +139,17 @@ public static class ServicesExtensions
 			opts.MultiTenant = storeConfig.MultiTenant;
 		});
 
-		return services;
+		TimeSpan validationInterval = TimeSpan.FromSeconds(60 * 5);
+		if (storeConfig.ValidationInterval != null)
+			validationInterval = storeConfig.ValidationInterval.Value;
+
+
+        services.Configure<SecurityStampValidatorOptions>(opts =>
+        {
+			opts.ValidationInterval = validationInterval; 
+        });
+
+        return services;
     }
 }
 

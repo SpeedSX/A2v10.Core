@@ -1,12 +1,14 @@
-﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
 
-using A2v10.Infrastructure;
-using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+
+using Microsoft.Extensions.DependencyInjection;
+
+using A2v10.Infrastructure;
 
 namespace A2v10.Xaml;
 
@@ -216,8 +218,7 @@ public class ColumnDefinitions : List<ColumnDefinition>
 		var coll = new ColumnDefinitions();
 		if (val.StartsWith("Repeat"))
 		{
-			var regex = new Regex(@"^Repeat\((.+)\)$");
-			var match = regex.Match(val.Trim());
+			var match = Regex.Match(val.Trim(), @"^Repeat\((.+)\)$");
 			if (match.Groups.Count < 2)
 				throw new XamlException($"Invalid repeat value '{val}'");
 
@@ -271,9 +272,7 @@ public class RowDefinitionsConverter : TypeConverter
 		if (value is RowDefinitions)
 			return value;
 		else if (value is String strValue)
-		{
 			return RowDefinitions.FromString(strValue);
-		}
 		return base.ConvertFrom(context, culture, value);
 	}
 }
@@ -296,9 +295,7 @@ public class ColumnDefinitionsConverter : TypeConverter
 		if (value is ColumnDefinitions)
 			return value;
 		else if (value is String strVal)
-		{
 			return ColumnDefinitions.FromString(strVal);
-		}
 		return base.ConvertFrom(context, culture, value);
 	}
 }
