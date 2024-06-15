@@ -1,4 +1,4 @@
-﻿// Copyright © 2022 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2022-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Collections.Generic;
@@ -10,6 +10,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 
 using A2v10.Xaml.Report;
+using A2v10.ReportEngine.Script;
 
 namespace A2v10.ReportEngine.Pdf;
 
@@ -21,19 +22,13 @@ internal record AccessFuncItem
 	internal String? BulletExpression;
 }
 
-internal class ListComposer : FlowElementComposer
+internal class ListComposer(List list, RenderContext context) : FlowElementComposer
 {
-	private readonly List _list;
-	private readonly RenderContext _context;
-	private readonly Dictionary<ListItem, AccessFuncItem> _accessFuncs = new();
+	private readonly List _list = list;
+	private readonly RenderContext _context = context;
+	private readonly Dictionary<ListItem, AccessFuncItem> _accessFuncs = [];
 
-	public ListComposer(List list, RenderContext context)
-	{
-		_list = list;
-		_context = context;
-	}
-
-	internal override void Compose(IContainer container, Object? value = null)
+    internal override void Compose(IContainer container, Object? value = null)
 	{
 		if (!_context.IsVisible(_list))
 			return;

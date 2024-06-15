@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
 
 using System.ComponentModel;
 using System.Globalization;
@@ -35,7 +35,7 @@ public record Length
 
 	internal static Boolean IsValidLength(String strVal)
 	{
-		return (strVal.EndsWith("%") ||
+		return (strVal.EndsWith('%') ||
 				strVal.EndsWith("px") ||
 				strVal.EndsWith("vh") ||
 				strVal.EndsWith("vw") ||
@@ -100,8 +100,8 @@ public record GridLength
 			return new GridLength("auto");
 		else if (strVal.StartsWith("MinMax"))
 		{
-			var re = new Regex(@"MinMax\(([\w\.]+[%\*\.]?);([\w\.]+[%\*\.]?)\)");
-			var match = re.Match(strVal.Replace(" ", String.Empty));
+			var pattern = @"MinMax\(([\w\.]+[%\*\.]?);([\w\.]+[%\*\.]?)\)";
+			var match = Regex.Match(strVal.Replace(" ", String.Empty), pattern);
 			if (match.Groups.Count != 3)
 				throw new XamlException($"Invalid grid length value '{strVal}'");
 			GridLength gl1 = GridLength.FromString(match.Groups[1].Value);
@@ -110,7 +110,7 @@ public record GridLength
 		}
 		else if (Length.IsValidLength(strVal))
 			return new GridLength() { Value = strVal };
-		if (strVal.EndsWith("*"))
+		if (strVal.EndsWith('*'))
 			return new GridLength(strVal.Trim().Replace("*", "fr"));
 		else if (Double.TryParse(strVal, NumberStyles.Any, CultureInfo.InvariantCulture, out Double _))
 			return new GridLength(strVal + "px");

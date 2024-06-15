@@ -11,6 +11,7 @@ using Newtonsoft.Json;
 using A2v10.Data.Interfaces;
 using A2v10.Infrastructure;
 using System.Collections.Concurrent;
+using Microsoft.IdentityModel.Tokens;
 
 namespace A2v10.Platform.Web;
 
@@ -36,18 +37,12 @@ public class ProfileTimer
 	}
 }
 
-public sealed class ProfileItem : ProfileTimer, IDisposable
+public sealed class ProfileItem(String msg) : ProfileTimer(), IDisposable
 {
-	[JsonProperty("text")]
-	public String Text { get; set; }
+    [JsonProperty("text")]
+    public String Text { get; set; } = msg;
 
-	public ProfileItem(String msg)
-		: base()
-	{
-		Text = msg;
-	}
-
-	public void Dispose()
+    public void Dispose()
 	{
 		Stop();
 	}
@@ -57,32 +52,25 @@ internal class ProfileItems : List<ProfileItem>
 {
 }
 
-internal class ProfileRequest : ProfileTimer, IProfileRequest, IDisposable
+internal class ProfileRequest(String address) : ProfileTimer(), IProfileRequest, IDisposable
 {
-	public ProfileRequest(String address)
-		: base()
-	{
-		Url = address;
-		Items = new Dictionary<ProfileAction, ProfileItems>();
-	}
-
-	public void Dispose()
+    public void Dispose()
 	{
 		Stop();
 	}
 
-	[JsonProperty("url")]
-	public String Url { get; set; }
+    [JsonProperty("url")]
+    public String Url { get; set; } = address;
 
-	[JsonProperty("items")]
-	public IDictionary<ProfileAction, ProfileItems> Items { get; set; }
+    [JsonProperty("items")]
+    public IDictionary<ProfileAction, ProfileItems> Items { get; set; } = new Dictionary<ProfileAction, ProfileItems>();
 
-	public IDisposable Start(ProfileAction kind, String description)
+    public IDisposable Start(ProfileAction kind, String description)
 	{
 		var itm = new ProfileItem(description);
 		if (!Items.TryGetValue(kind, out ProfileItems? elems))
 		{
-			elems = new ProfileItems();
+			elems = [];
 			Items.Add(kind, elems);
 		}
 		elems.Add(itm);
@@ -108,31 +96,21 @@ public sealed class WebProfilerStorage
 
 	internal LinkedList<ProfileRequest> Get(String key)
 	{
-		if (_map.TryGetValue(key, out var list))
-			return list;
-		list = new LinkedList<ProfileRequest>();
-		_map[key] = list;
-		return list;
+		return _map.GetOrAdd(key, (key) => new LinkedList<ProfileRequest>());
 	}
 }
 
-public sealed class WebProfiler : IProfiler, IDataProfiler, IDisposable
+public sealed class WebProfiler(IHttpContextAccessor httpContext, WebProfilerStorage storage) : IProfiler, IDataProfiler, IDisposable
 {
 	const Int32 REQUEST_COUNT = 15;
 
 	private ProfileRequest? _request;
 	public Boolean Enabled { get; set; }
 
-	private readonly IHttpContextAccessor _httpContext;
-	private readonly WebProfilerStorage _storage;
+	private readonly IHttpContextAccessor _httpContext = httpContext;
+	private readonly WebProfilerStorage _storage = storage;
 
-    public WebProfiler(IHttpContextAccessor httpContext, WebProfilerStorage storage)
-	{
-		_httpContext = httpContext;
-		_storage = storage;
-	}
-
-	public void Dispose()
+    public void Dispose()
 	{
 		var rq = _request;
 		if (rq != null)
@@ -152,9 +130,12 @@ public sealed class WebProfiler : IProfiler, IDataProfiler, IDisposable
 			return null;
 		var requestList = _storage.Get(SessionId());
 		_request = new ProfileRequest(address);
-		requestList.AddFirst(_request);
-		while (requestList.Count > REQUEST_COUNT)
-			requestList.RemoveLast();
+		lock (requestList)
+		{
+			requestList.AddFirst(_request);
+			while (requestList.Count > REQUEST_COUNT)
+				requestList.RemoveLast();
+		}
 		return _request;
 	}
 
@@ -169,8 +150,7 @@ public sealed class WebProfiler : IProfiler, IDataProfiler, IDisposable
             sessionKey,
             new CookieOptions()
             {
-                SameSite = SameSiteMode.Strict,
-                Secure = true,
+                SameSite = SameSiteMode.Lax,
                 HttpOnly = true,
             }
         );
@@ -188,6 +168,8 @@ public sealed class WebProfiler : IProfiler, IDataProfiler, IDisposable
 	public String? GetJson()
 	{
 		var requestList = _storage.Get(SessionId());
+		if (requestList.IsNullOrEmpty()) 
+			return "[]";
         return JsonConvert.SerializeObject(requestList);
 	}
 

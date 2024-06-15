@@ -15,19 +15,12 @@ using A2v10.Data.Interfaces;
 
 namespace A2v10.Identity.UI;
 
-public class InviteUserHandler : IClrInvokeTarget
+public class InviteUserHandler(IServiceProvider serviceProvider) : IClrInvokeTarget
 {
-    private readonly UserManager<AppUser<Int64>> _userManager;
-    private readonly AppUserStoreOptions<Int64> _userStoreOptions;
-    private readonly IDbContext _dbContext;
-    private readonly EmailSender _emailSender;
-    public InviteUserHandler(IServiceProvider serviceProvider)
-    {
-        _userManager = serviceProvider.GetRequiredService<UserManager<AppUser<Int64>>>();
-        _userStoreOptions = serviceProvider.GetRequiredService<IOptions<AppUserStoreOptions<Int64>>>().Value;
-        _dbContext = serviceProvider.GetRequiredService<IDbContext>();
-        _emailSender = new EmailSender(serviceProvider);
-	}
+    private readonly UserManager<AppUser<Int64>> _userManager = serviceProvider.GetRequiredService<UserManager<AppUser<Int64>>>();
+    private readonly AppUserStoreOptions<Int64> _userStoreOptions = serviceProvider.GetRequiredService<IOptions<AppUserStoreOptions<Int64>>>().Value;
+    private readonly IDbContext _dbContext = serviceProvider.GetRequiredService<IDbContext>();
+    private readonly EmailSender _emailSender = new(serviceProvider);
 
     Boolean IsMultiTenant => _userStoreOptions.MultiTenant ?? false;
 
@@ -39,7 +32,8 @@ public class InviteUserHandler : IClrInvokeTarget
         {
             UserName = userName,
             Email = userName,
-            Roles = args.Eval<String>("User.Roles")
+            Roles = args.Eval<String>("User.Roles"),
+            Locale = args.Eval<String>("User.Locale")
 	    };
 
         if (IsMultiTenant)
@@ -53,7 +47,7 @@ public class InviteUserHandler : IClrInvokeTarget
             // create tenant user
             var createdUser = await _userManager.FindByIdAsync(user.Id.ToString())
                 ?? throw new InvalidOperationException("Create user failed");
-            await _dbContext.ExecuteAsync<AppUser<Int64>>(user.Segment, "a2security.[User.Invite]", createdUser);
+            await _dbContext.ExecuteAsync<AppUser<Int64>>(user.Segment, $"[{_userStoreOptions.SecuritySchema}].[User.Invite]", createdUser);
         }
 
         await _emailSender.SendInviteEMail(user);

@@ -1,21 +1,24 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.IO;
 using System.Threading.Tasks;
+using System.Linq;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 
 using Newtonsoft.Json;
 
 using A2v10.Data.Interfaces;
 using A2v10.Infrastructure;
 using A2v10.Web.Identity;
-using Microsoft.Extensions.Options;
 
 namespace A2v10.Platform.Web.Controllers;
 
@@ -24,31 +27,14 @@ public record MultiTenantParamJson(String Companies, String Period);
 [Route("_shell/[action]")]
 [Authorize]
 [ExecutingFilter]
-public class ShellController : Controller
+public class ShellController(IDbContext _dbContext, IApplicationHost _host, ICurrentUser _currentUser, IProfiler _profiler,
+	ILocalizer _localizer, IAppCodeProvider _codeProvider, IAppDataProvider _appDataProvider, IOptions<AppOptions> appOptions,
+	ILogger<ShellController> _logger, IPermissionBag _pemissionBag) : Controller
 {
-	private readonly IApplicationHost _host;
-	private readonly IDbContext _dbContext;
-	private readonly ICurrentUser _currentUser;
-	private readonly IProfiler _profiler;
-	private readonly IAppCodeProvider _codeProvider;
-	private readonly IAppDataProvider _appDataProvider;
-	private readonly AppOptions _appOptions;
-	private readonly ILocalizer _localizer;
+	private readonly AppOptions _appOptions = appOptions.Value;
+
 
 	const String MENU_PROC = "a2ui.[Menu.User.Load]";
-
-	public ShellController(IDbContext dbContext, IApplicationHost host, ICurrentUser currentUser, IProfiler profiler,
-		ILocalizer localizer, IAppCodeProvider codeProvider, IAppDataProvider appDataProvider, IOptions<AppOptions> appOptions)
-	{
-		_host = host;
-		_dbContext = dbContext;
-		_profiler = profiler;
-		_codeProvider = codeProvider;
-		_localizer = localizer;
-		_currentUser = currentUser;
-		_appDataProvider = appDataProvider;
-		_appOptions = appOptions.Value;
-	}
 
 	Int64? UserId => User.Identity.GetUserId<Int64?>();
 	Int32? TenantId => User.Identity.GetUserTenant<Int32>();
@@ -74,6 +60,26 @@ public class ShellController : Controller
 		if (!String.IsNullOrEmpty(_appOptions.Layout))
 			return DoScriptPlain();
 		return DoScript();
+	}
+
+	public async Task<IActionResult> ScriptSp()
+	{
+		try
+		{
+			Response.ContentType = MimeTypes.Application.Javascript;
+			var script = await BuildScriptSinglePage();
+			return new WebActionResult(script);
+		}
+		catch (Exception ex)
+		{
+			return new WebExceptionResult(500, ex.Message);
+		}
+	}
+
+	public IActionResult Locale()
+	{
+		var x = JsonConvert.SerializeObject(_localizer.Dictionary, Formatting.None);
+		return new WebActionResult($"app.modules[\"app:locale\"] = {x}", MimeTypes.Application.Javascript);
 	}
 
 	async Task<IActionResult> DoScript()
@@ -134,10 +140,10 @@ public class ShellController : Controller
 	{
 		String shell = Resource.shellPlain;
 
-		ExpandoObject loadPrms = new();
+		ExpandoObject loadPrms = [];
 		SetSqlParams(loadPrms);
 
-		ExpandoObject macros = new();
+		ExpandoObject macros = [];
 
 		_ = macros.Append(new Dictionary<String, Object?>
 		{
@@ -147,6 +153,8 @@ public class ShellController : Controller
 		});
 
 		String proc = MENU_PROC;
+
+		await EnsurePermissionObjects();
 
 		if (_appOptions.IsCustomUserMenu)
 			proc = _appOptions.UserMenu!;
@@ -162,14 +170,55 @@ public class ShellController : Controller
 		return shell.ResolveMacros(macros) ?? String.Empty;
 	}
 
+	async Task<String> BuildScriptSinglePage()
+	{
+		String shell = Resource.shellSinglePage;
+
+		ExpandoObject loadPrms = [];
+		SetSqlParams(loadPrms);
+
+		ExpandoObject macros = [];
+
+		_ = macros.Append(new Dictionary<String, Object?>
+		{
+			{ "AppVersion", _appDataProvider.AppVersion },
+			{ "Debug", IsDebugConfiguration ? "true" : "false" },
+			{ "AppData", await _appDataProvider.GetAppDataAsStringAsync() }
+		});
+
+		String proc = MENU_PROC;
+
+		await EnsurePermissionObjects();
+
+		if (_appOptions.IsCustomUserMenu)
+			proc = _appOptions.UserMenu!;
+
+		proc = proc.Replace("Menu.", "MenuSP.");
+		IDataModel dm = await _dbContext.LoadModelAsync(_host.TenantDataSource, proc, loadPrms);
+
+		ExpandoObject? menuRoot = dm.Root.RemoveEmptyArrays();
+		SetUserStatePermission(dm);
+		SetUserStateModules(dm);
+
+		String jsonMenu = JsonConvert.SerializeObject(menuRoot, JsonHelpers.ConfigSerializerSettings(_host.IsDebugConfiguration));
+		macros.Set("Menu", jsonMenu);
+
+		return shell.ResolveMacros(macros) ?? String.Empty;
+	}
+
+	async Task EnsurePermissionObjects()
+	{
+		await _pemissionBag.LoadPermisionBagAsync(_dbContext, _currentUser.Identity.Segment);
+	}
+
 	async Task<String> BuildScript()
 	{
 		String shell = Resource.shell;
 
-		ExpandoObject loadPrms = new();
+		ExpandoObject loadPrms = [];
 		SetSqlParams(loadPrms);
 
-		ExpandoObject macros = new();
+		ExpandoObject macros = [];
 
 		_ = macros.Append(new Dictionary<String, Object?>
 		{
@@ -182,7 +231,7 @@ public class ShellController : Controller
 			{ "Period", "null" },
 		});
 
-		Boolean setCompany = false;
+		//Boolean setCompany = false;
 		/*
 		if (_host.IsMultiTenant || _host.IsUsePeriodAndCompanies)
 		{
@@ -206,8 +255,14 @@ public class ShellController : Controller
 
 		String proc = MENU_PROC;
 
+		await EnsurePermissionObjects();
+
 		if (_appOptions.IsCustomUserMenu)
 			proc = _appOptions.UserMenu!;
+
+		_logger.LogInformation("AppPath: {path}", _appOptions.Path);
+        _logger.LogInformation("Menu procedure: {proc}", proc);
+
 
 		IDataModel dm = await _dbContext.LoadModelAsync(_host.TenantDataSource, proc, loadPrms);
 
@@ -218,7 +273,8 @@ public class ShellController : Controller
 		String jsonMenu = JsonConvert.SerializeObject(menuRoot, JsonHelpers.ConfigSerializerSettings(_host.IsDebugConfiguration));
 		macros.Set("Menu", jsonMenu);
 
-		if (setCompany)
+		/*
+        if (setCompany)
 		{
 			var comps = dm.Root.Get<List<ExpandoObject>>("Companies");
 			var currComp = (comps?.Find(c => c.Get<Boolean>("Current"))) 
@@ -229,20 +285,34 @@ public class ShellController : Controller
 			_currentUser.SetCompanyId(currComp.Get<Int64>("Id"));
 
 		}
+		*/
 
 		return shell.ResolveMacros(macros) ?? String.Empty;
 	}
 
 	void SetUserStatePermission(IDataModel model)
 	{
-		_currentUser.SetReadOnly(model.Eval<Boolean>("UserState.ReadOnly"));
+		var adm = model.Eval<Boolean>("UserState.IsAdmin");
+		Boolean ro = model.Eval<Boolean>("UserState.ReadOnly");
+		if (adm)
+		{
+			_currentUser.SetUserState(true, ro, null);
+		}
+		else
+		{
+			var perm = model.Root.Get<List<ExpandoObject>>("Permissions");
+			String? permSet = null;
+			if (perm != null && perm.Count > 0)
+				permSet = String.Join(',', perm.Select(p => $"{p.Get<Int64>("Id")}:{p.Get<Int32>("Flags"):X}"));
+			_currentUser.SetUserState(false, ro, permSet);
+		}
 	}
 
     static void SetUserStateModules(IDataModel _1/*dm*/)
 	{
 	}
 
-    void GetAppFiles(String ext, TextWriter writer)
+	void GetAppFiles(String ext, TextWriter writer)
 	{
 		var files = _codeProvider.EnumerateAllFiles("_assets", $"*.{ext}");
 		if (files == null)

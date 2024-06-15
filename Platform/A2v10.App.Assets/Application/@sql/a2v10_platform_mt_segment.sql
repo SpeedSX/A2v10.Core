@@ -1,21 +1,28 @@
 /*
-Copyright © 2008-2023 Oleksandr Kukhtin
+Copyright © 2008-2024 Oleksandr Kukhtin
 
-Last updated : 13 aug 2023
-module version : 8137
+Last updated : 17 mar 2024
+module version : 8267
 */
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.SCHEMATA where SCHEMA_NAME=N'a2sys')
-	exec sp_executesql N'create schema a2sys';
+	exec sp_executesql N'create schema a2sys authorization dbo';
 go
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.SCHEMATA where SCHEMA_NAME=N'a2security')
-	exec sp_executesql N'create schema a2security';
+	exec sp_executesql N'create schema a2security authorization dbo';
 go
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.SCHEMATA where SCHEMA_NAME=N'a2ui')
-	exec sp_executesql N'create schema a2ui';
+	exec sp_executesql N'create schema a2ui authorization dbo';
 go
+
+------------------------------------------------
+alter authorization on schema::a2sys to dbo;
+alter authorization on schema::a2security to dbo;
+alter authorization on schema::a2ui to dbo;
+go
+
 ------------------------------------------------
 grant execute on schema ::a2sys to public;
 grant execute on schema ::a2security to public;
@@ -77,6 +84,7 @@ create table a2security.Users
 	SecurityStamp2 nvarchar(max) null,
 	PasswordHash2 nvarchar(max) null,
 	TwoFactorEnabled bit not null constraint DF_Users_TwoFactorEnabled default(0),
+	AuthenticatorKey nvarchar(64) null,
 	Email nvarchar(255) null,
 	EmailConfirmed bit not null constraint DF_Users_EmailConfirmed default(0),
 	PhoneNumber nvarchar(255) null,
@@ -94,9 +102,19 @@ create table a2security.Users
 	Segment nvarchar(32) null,
 	SetPassword bit,
 	IsApiUser bit constraint DF_UsersIsApiUser default(0),
+	IsExternalLogin bit constraint DF_UsersIsExternalLogin default(0),
+	IsBlocked bit constraint DF_UsersIsBlocked default(0),
 	UtcDateCreated datetime not null constraint DF_Users_UtcDateCreated default(getutcdate()),
 	constraint PK_Users primary key (Tenant, Id)
 );
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2security' and TABLE_NAME = N'Users' and COLUMN_NAME = N'IsBlocked')
+	alter table a2security.Users add IsBlocked bit constraint DF_UsersIsBlocked default(0);
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2security' and TABLE_NAME = N'Users' and COLUMN_NAME = N'AuthenticatorKey')
+	alter table a2security.Users add AuthenticatorKey nvarchar(64) null;
 go
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2security' and TABLE_NAME=N'ApiUserLogins')
@@ -107,7 +125,7 @@ create table a2security.ApiUserLogins
 	[Mode] nvarchar(16) not null, -- ApiKey, OAuth2, JWT
 	[ClientId] nvarchar(255),
 	[ClientSecret] nvarchar(255),
-	[ApiKey] nvarchar(255),
+	[ApiKey] nvarchar(1023),
 	[AllowIP] nvarchar(1024),
 	Memo nvarchar(255),
 	RedirectUrl nvarchar(255),
@@ -115,6 +133,20 @@ create table a2security.ApiUserLogins
 	constraint PK_ApiUserLogins primary key clustered ([User], Tenant, Mode) with (fillfactor = 70),
 	constraint FK_ApiUserLogins_User_Users foreign key (Tenant, [User]) references a2security.Users(Tenant, Id)
 
+);
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2security' and TABLE_NAME=N'ExternalUserLogins')
+create table a2security.ExternalUserLogins
+(
+	[User] bigint not null,
+	Tenant int not null 
+		constraint FK_ExternalUserLogins_Tenant_Tenants foreign key references a2security.Tenants(Id),
+	[LoginProvider] nvarchar(255) not null,
+	[ProviderKey] nvarchar(max) not null,
+	[UtcDateModified] datetime not null constraint DF_ExternalUserLogins_DateModified default(getutcdate()),
+	constraint PK_ExternalUserLogins primary key clustered ([User], Tenant, LoginProvider) with (fillfactor = 70),
+	constraint FK_ExternalUserLogins_User_Users foreign key (Tenant, [User]) references a2security.Users(Tenant, Id)
 );
 go
 ------------------------------------------------
@@ -135,13 +167,27 @@ create table a2security.DeletedUsers
 );
 go
 ------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2security' and TABLE_NAME=N'RefreshTokens')
+create table a2security.RefreshTokens
+(
+	UserId bigint not null,
+	Tenant int not null 
+		constraint FK_RefreshTokens_Tenant_Tenants foreign key references a2security.Tenants(Id),
+	[Provider] nvarchar(64) not null,
+	[Token] nvarchar(255) not null,
+	Expires datetime not null,
+		constraint FK_RefreshTokens_UserId_Users foreign key (Tenant, UserId) references a2security.Users(Tenant, Id),
+	constraint PK_RefreshTokens primary key (Tenant, UserId, [Provider], Token) with (fillfactor = 70),
+);
+go
+------------------------------------------------
 create or alter view a2security.ViewUsers
 as
 	select Id, UserName, DomainUser, PasswordHash, SecurityStamp, Email, PhoneNumber,
 		LockoutEnabled, AccessFailedCount, LockoutEndDateUtc, TwoFactorEnabled, [Locale],
 		PersonName, Memo, Void, LastLoginDate, LastLoginHost, Tenant, EmailConfirmed,
 		PhoneNumberConfirmed, RegisterHost, ChangePasswordEnabled, Segment,
-		SecurityStamp2, PasswordHash2, SetPassword
+		SecurityStamp2, PasswordHash2, SetPassword, IsBlocked, AuthenticatorKey
 	from a2security.Users u
 	where Void = 0 and Id <> 0;
 go
@@ -231,9 +277,15 @@ create table a2ui.Menu
 );
 go
 -- migrations
-------------------------------------------------
+-------------------------------------------------
+if (exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2security' and TABLE_NAME = N'ApiUserLogins' and COLUMN_NAME = N'ApiKey' and CHARACTER_MAXIMUM_LENGTH <> 1023))
+	alter table a2security.ApiUserLogins alter column ApiKey nvarchar(1023);
+go
 if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2security' and TABLE_NAME = N'Users' and COLUMN_NAME = N'IsApiUser')
 	alter table a2security.Users add IsApiUser bit constraint DF_UsersIsApiUser default(0) with values;
+go
+if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2security' and TABLE_NAME = N'Users' and COLUMN_NAME = N'IsExternalLogin')
+	alter table a2security.Users add IsExternalLogin bit constraint DF_UsersIsExternalLogin default(0) with values;
 go
 if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2ui' and TABLE_NAME = N'Menu' and COLUMN_NAME = N'IsDevelopment')
 	alter table a2ui.Menu add [IsDevelopment] bit constraint DF_Menu_IsDevelopment default(0) with values;
@@ -279,10 +331,10 @@ go
 
 
 /*
-Copyright © 2008-2023 Oleksandr Kukhtin
+Copyright © 2008-2024 Oleksandr Kukhtin
 
-Last updated : 06 sep 2023
-module version : 8152
+Last updated : 08 jun 2024
+module version : 8301
 */
 ------------------------------------------------
 drop procedure if exists a2ui.[Menu.Merge];
@@ -368,6 +420,21 @@ begin
 		inner join a2ui.Menu m on m.Tenant = @TenantId and RT.Id=m.Id
 	where IsDevelopment = 0 or IsDevelopment = @isDevelopment
 	order by RT.[Level], m.[Order], RT.[Id];
+
+	-- system parameters
+	select [SysParams!TParam!Object]= null, [AppTitle], [AppSubTitle]
+	from (select [Name], [Value]=StringValue from a2sys.SysParams) as s
+		pivot (min([Value]) for [Name] in ([AppTitle], [AppSubTitle])) as p;
+end
+go
+------------------------------------------------
+create or alter procedure a2ui.[MenuSP.User.Load]
+@TenantId int = 1,
+@UserId bigint = null
+as
+begin
+	set nocount on;
+	set transaction isolation level read uncommitted;
 
 	-- system parameters
 	select [SysParams!TParam!Object]= null, [AppTitle], [AppSubTitle]
@@ -500,7 +567,7 @@ go
 Copyright © 2008-2023 Oleksandr Kukhtin
 
 Last updated : 05 aug 2023
-module version : 8134
+module version : 8186
 */
 
 -- SECURITY SEGMENT
@@ -605,7 +672,8 @@ create or alter procedure a2security.[User.UpdateParts]
 @PersonName nvarchar(255) = null,
 @EmailConfirmed bit = null,
 @FirstName nvarchar(255) = null,
-@LastName nvarchar(255) = null
+@LastName nvarchar(255) = null,
+@Locale nvarchar(32) = null
 as
 begin
 	set nocount on;
@@ -614,7 +682,8 @@ begin
 	update a2security.Users set 
 		PhoneNumber = isnull(@PhoneNumber, PhoneNumber),
 		PersonName = isnull(@PersonName, PersonName),
-		EmailConfirmed = isnull(@EmailConfirmed, EmailConfirmed)
+		EmailConfirmed = isnull(@EmailConfirmed, EmailConfirmed),
+		Locale = isnull(@Locale, Locale)
 	where Id = @Id;
 end
 go

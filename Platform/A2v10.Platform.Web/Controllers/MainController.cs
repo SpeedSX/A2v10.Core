@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 
@@ -8,44 +8,34 @@ using System.IO;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Diagnostics;
 
 using A2v10.Infrastructure;
 using A2v10.Web.Identity;
 using A2v10.Module.Infrastructure;
-using Microsoft.AspNetCore.Diagnostics;
-using System.Diagnostics;
+using System.Linq;
 
 namespace A2v10.Platform.Web.Controllers;
 
 [Authorize]
 [ExecutingFilter]
 [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-public class MainController : Controller
+public class MainController(IDataService dataService, IOptions<AppOptions> appOptions,
+    IApplicationTheme appTheme, IAppCodeProvider codeProvider, ILicenseManager licenseManager,
+    ICurrentUser currentUser) : Controller
 {
-	private readonly AppOptions _appOptions;
-	private readonly IDataService _dataService;
-	private readonly IApplicationTheme _appTheme;
-	private readonly IAppCodeProvider _codeProvider;
-	private readonly ILicenseManager _licenseManager;
-	private readonly ICurrentUser _currentUser;
+	private readonly AppOptions _appOptions = appOptions.Value;
+	private readonly IDataService _dataService = dataService;
+	private readonly IApplicationTheme _appTheme = appTheme;
+	private readonly IAppCodeProvider _codeProvider = codeProvider;
+	private readonly ILicenseManager _licenseManager = licenseManager;
+	private readonly ICurrentUser _currentUser = currentUser;
 
-	public MainController(IDataService dataService, IOptions<AppOptions> appOptions, 
-		IApplicationTheme appTheme, IAppCodeProvider codeProvider, ILicenseManager licenseManager,
-		ICurrentUser currentUser)
-	{
-		_appOptions = appOptions.Value;
-		_dataService = dataService;
-		_appTheme = appTheme;
-		_codeProvider = codeProvider;
-		_licenseManager = licenseManager;
-		_currentUser = currentUser;
-	}
-
-	static String? NormalizePathInfo(String? pathInfo)
+    static String? NormalizePathInfo(String? pathInfo)
         {
 		if (String.IsNullOrEmpty(pathInfo))
 			return null;
-		var parts = pathInfo.Split(new Char[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar });
+		var parts = pathInfo.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar]);
 		if (parts.Length == 1)
 			return $"{pathInfo}{Path.DirectorySeparatorChar}index{Path.DirectorySeparatorChar}0";
 		return pathInfo;
@@ -61,22 +51,30 @@ public class MainController : Controller
 		if (!await CheckLicenseAsync())
 			return new EmptyResult();	
 
-		var layoutDescr = await _dataService.GetLayoutDescriptionAsync(NormalizePathInfo(pathInfo));
-
 		if (User.Identity == null)
 			throw new ApplicationException("Invalid User");
+
+		var layoutDescr = await _dataService.GetLayoutDescriptionAsync(NormalizePathInfo(pathInfo));
+
 		var viewModel = new MainViewModel()
 		{
 			PersonName = User.Identity.GetUserPersonName() ?? User.Identity.Name ?? throw new ApplicationException("Invalid UserName"),
 			Debug = _appOptions.Environment.IsDebug,
-			HelpUrl = "http://TODO/HELP_URL",
+			HelpUrl = _appOptions.HelpUrl,
 			ModelStyles = layoutDescr?.ModelStyles,
 			ModelScripts = layoutDescr?.ModelScripts,
 			HasNavPane = HasNavPane(),
 			HasProfile = HasProfile(),
-			Theme = _appTheme.MakeTheme()
+			Theme = _appTheme.MakeTheme(),
+			HasSettings = _currentUser.Identity.IsAdmin && HasSettings(),
+			Minify = _appOptions.Environment.IsRelease ? "min." : String.Empty,
 		};
-		ViewBag.__Minify = ""; // "min.";
+
+		if (pathInfo != null && _appOptions.SinglePages.Any(x => pathInfo.StartsWith(x, StringComparison.OrdinalIgnoreCase)))
+		{
+			viewModel.SinglePagePath = pathInfo;
+			return View("Default.singlepage", viewModel);
+		}
 
 		if (!String.IsNullOrEmpty(_appOptions.Layout))
 			return View($"Default.{_appOptions.Layout}", viewModel);
@@ -84,13 +82,12 @@ public class MainController : Controller
 		return View(viewModel);
 	}
 
-
 	[Route("main/error")]
 	[HttpGet]
 	[AllowAnonymous]
-	public IActionResult Error(String? pathInfo)
+	public IActionResult Error(String? _1/*pathInfo*/)
 	{
-        var RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
+        //var RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
 
         var exceptionHandlerPathFeature =
             HttpContext.Features.Get<IExceptionHandlerPathFeature>();
@@ -111,12 +108,16 @@ public class MainController : Controller
             ExceptionMessage ??= string.Empty;
             ExceptionMessage += " Page: Home.";
         }
-        return View();
+        return View("Error", ExceptionMessage);
 	}
 
     private Boolean HasNavPane()
 	{
 		return _codeProvider.IsFileExists("_navpane/model.json");
+	}
+	private Boolean HasSettings()
+	{
+		return _codeProvider.IsFileExists("settings/model.json");
 	}
 	private Boolean HasProfile()
 	{

@@ -5,7 +5,19 @@
 			"Scripts/signalr.js",
 			"Scripts/appheader.js",
 			"Scripts/navbar.js",
-			"Scripts/shell.js"
+			"Scripts/shell.js",
+			"Scripts/bigcalendar.js"
+		],
+		"minify": { "enabled": false }
+	},
+	{
+		"outputFileName": "wwwroot/scripts/tabbedsp.js",
+		"inputFiles": [
+			"Scripts/signalr.js",
+			"Scripts/appheader.js",
+			"Scripts/navbar.js",
+			"Scripts/shellsp.js",
+			"Scripts/bigcalendar.js"
 		],
 		"minify": { "enabled": false }
 	},

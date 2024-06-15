@@ -9,14 +9,11 @@ public class ServerResult
 
 }
 
-public class Item
+#pragma warning disable CS9113 // Parameter is unread.
+public class Item(IServiceProvider _)
+#pragma warning restore CS9113 // Parameter is unread.
 {
-	public Item(IServiceProvider serviceProvider)
-	{
-
-	}
-
-	public Task<ServerResult> Method1(Int64 TenantId, Int64 UserId, ExpandoObject prms)
+    public Task<ServerResult> Method1(Int64 TenantId, Int64 UserId, ExpandoObject prms)
 	{
 		throw new NotImplementedException();
 	}

@@ -34,8 +34,10 @@ public class Selector : ValuedControl, ITableControl
 
 	public Boolean? ShowCaret { get; set; }
 	public Boolean ShowClear { get; set; }
-	public SelectorStyle Style { get; set; }
+    public Boolean UseAll { get; set; }
+    public SelectorStyle Style { get; set; }
 	public Int32 MaxChars { get; set; }
+	public Int32 LineClamp { get; set; }
 
 	public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 	{
@@ -47,8 +49,13 @@ public class Selector : ValuedControl, ITableControl
 			input.MergeAttribute(":fetch", $"$delegate('{Delegate}')");
 		if (!String.IsNullOrEmpty(SetDelegate))
 			input.MergeAttribute(":hitfunc", $"$delegate('{SetDelegate}')");
-		if (!String.IsNullOrEmpty(Fetch))
-			input.MergeAttribute("fetch-command", Fetch);
+
+        var fetchBind = GetBinding(nameof(Fetch));
+        if (fetchBind != null)
+            input.MergeAttribute(":fetch-command", fetchBind.GetPathFormat(context));
+        else if (!String.IsNullOrEmpty(Fetch))
+            input.MergeAttribute("fetch-command", Fetch);
+
 		input.MergeAttribute("display", DisplayProperty);
 		if (PanelPlacement != DropDownPlacement.BottomLeft)
 			input.MergeAttribute("placement", PanelPlacement.ToString().ToKebabCase());
@@ -68,8 +75,15 @@ public class Selector : ValuedControl, ITableControl
 			input.MergeAttribute(":caret", "true");
 		if (ShowClear)
 			input.MergeAttribute(":has-clear", "true");
-		if (MaxChars != 0)
+        if (UseAll)
+        {
+            input.MergeAttribute(":has-clear", "true");
+            input.MergeAttribute(":use-all", "true");
+        }
+        if (MaxChars != 0)
 			input.MergeAttribute(":max-chars", MaxChars.ToString());
+		if (LineClamp != 0)
+			input.MergeAttribute(":line-clamp", LineClamp.ToString());
 
 		var isBind = GetBinding(nameof(ItemsSource));
 		if (isBind != null)

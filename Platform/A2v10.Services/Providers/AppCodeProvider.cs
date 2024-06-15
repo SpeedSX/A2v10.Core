@@ -12,18 +12,20 @@ public class AppCodeProvider : IAppCodeProvider
 {
 	private readonly Dictionary<String, IAppCodeProviderImpl> _providers = new(StringComparer.InvariantCultureIgnoreCase);
 	private readonly String _appId;
+
+	private const String DEFAULT_PROVIDER = "_";
 	public AppCodeProvider(IOptions<AppOptions> appOptions)
 	{
 		var opts = appOptions.Value ?? throw new ArgumentNullException(nameof(appOptions));
-		if (opts.Modules == null || !opts.Modules.Any())
-			_providers.Add("_", CreateProvider(opts.Path));
+		if (opts.Modules == null || opts.Modules.Count == 0)
+			_providers.Add(DEFAULT_PROVIDER, CreateProvider(opts.Path));
 		else
 		{
 			foreach (var (k, v) in opts.Modules)
 			{
 				var key = k.ToLowerInvariant();
 				if (v.Default)
-					key = "_";
+					key = DEFAULT_PROVIDER;
 				_providers.Add(key, CreateProvider(v.Path ?? throw new InvalidOperationException("Path is null")));
 			}
 		}
@@ -50,8 +52,8 @@ public class AppCodeProvider : IAppCodeProvider
 	}
 	IAppCodeProviderImpl GetProvider(String path)
 	{
-		if (!path.StartsWith("$"))
-			return _providers["_"];
+		if (!path.StartsWith('$'))
+			return _providers[DEFAULT_PROVIDER];
 		var fx = path.IndexOf('/');
 		var key = path[1..fx];
 		if (_providers.TryGetValue(key, out var proivder))
@@ -61,8 +63,13 @@ public class AppCodeProvider : IAppCodeProvider
 
 	public String MakePath(String path, String fileName)
 	{
+		if (fileName.StartsWith("/$main/"))
+		{
+			fileName = fileName[7..];
+			path = String.Empty;
+		}
 		var relative = Path.GetRelativePath(".", Path.Combine(path, fileName)).NormalizeSlash();
-		if (path.StartsWith("$") && !relative.StartsWith("$"))
+		if (path.StartsWith('$') && !relative.StartsWith('$'))
 		{
 			int fpos = relative.IndexOf('/');
 			relative = relative[(fpos + 1)..];
@@ -78,17 +85,24 @@ public class AppCodeProvider : IAppCodeProvider
 	public Stream? FileStreamRO(String path, Boolean primaryOnly = false)
 	{
 		if (primaryOnly)
-			GetProvider("_").FileStreamRO(path);
+			GetProvider(DEFAULT_PROVIDER).FileStreamRO(path);
 		return GetProvider(path).FileStreamRO(path);
 	}
 
-	public IEnumerable<String> EnumerateAllFiles(String path, String searchPattern)
+    public Stream? FileStreamResource(String path, Boolean primaryOnly = false)
+    {
+        if (primaryOnly)
+            GetProvider(DEFAULT_PROVIDER).FileStreamResource(path);
+        return GetProvider(path).FileStreamResource(path);
+    }
+
+    public IEnumerable<String> EnumerateAllFiles(String path, String searchPattern)
 	{
 		foreach (var (k, v) in _providers)
 		{
 			foreach (var file in v.EnumerateFiles(path, searchPattern))
 			{
-				if (k != "_")
+				if (k != DEFAULT_PROVIDER)
 					yield return $"${k}/{file}";
 				else
 					yield return file;

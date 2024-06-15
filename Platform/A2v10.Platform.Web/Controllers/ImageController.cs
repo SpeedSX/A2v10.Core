@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2023 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Threading.Tasks;
@@ -15,34 +15,18 @@ using A2v10.Data.Interfaces;
 
 namespace A2v10.Platform.Web.Controllers;
 
-public class BlobUpdateIdToken
-{
-    public Object? Id { get; set; }
-    public String? Mime { get; set; }
-    public String? Name { get; set; }
-    public String? Token { get; set; }
-}
-
 [ExecutingFilter]
 [Authorize]
 [ResponseCache(Duration = 2592000, Location = ResponseCacheLocation.Client)]
-public class ImageController : BaseController
+public class ImageController(IApplicationHost host,
+    ILocalizer localizer, ICurrentUser currentUser, IProfiler profiler,
+    IDataService dataService, ITokenProvider tokenProvider, IAppCodeProvider appCodeProvider) : BaseController(host, localizer, currentUser, profiler)
 {
-	private readonly IDataService _dataService;
-	private readonly ITokenProvider _tokenProvider;
-	private readonly IAppCodeProvider _appCodeProvider;
+	private readonly IDataService _dataService = dataService;
+	private readonly ITokenProvider _tokenProvider = tokenProvider;
+	private readonly IAppCodeProvider _appCodeProvider = appCodeProvider;
 
-	public ImageController(IApplicationHost host,
-		ILocalizer localizer, ICurrentUser currentUser, IProfiler profiler, 
-		IDataService dataService, ITokenProvider tokenProvider, IAppCodeProvider appCodeProvider)
-		: base(host, localizer, currentUser, profiler)
-	{
-		_dataService = dataService;
-		_tokenProvider = tokenProvider;
-		_appCodeProvider = appCodeProvider;
-	}
-
-	[Route("_image/{*pathInfo}")]
+    [Route("_image/{*pathInfo}")]
 	[HttpGet]
 	public async Task<IActionResult> Image(String pathInfo)
 	{
@@ -78,23 +62,29 @@ public class ImageController : BaseController
 		try
 		{
 			var files = Request.Form.Files;
-			var retList = new List<BlobUpdateIdToken>();
+			var retList = new List<ExpandoObject>();
 			foreach (var f in files)
 			{
 				Stream stream = f.OpenReadStream();
 				var name = Path.GetFileName(f.FileName);
-                var saved = await _dataService.SaveBlobAsync(UrlKind.Image, pathInfo, bi =>
+				var saved = await _dataService.SaveBlobAsync(pathInfo, blob =>
 				{
-					bi.UserId = this.UserId;
-                    if (_host.IsMultiTenant)
-                        bi.TenantId = this.TenantId;
-                    if (_host.IsMultiCompany)
-                        bi.CompanyId = this.CompanyId;
-                    bi.Name = name;
-                    bi.Mime = f.ContentType;
-                    bi.Stream = stream;
-                });
+					blob.Name = name;
+					blob.Mime = f.ContentType;
+					blob.Stream = stream;
+					blob.TenantId = _host.IsMultiTenant ? TenantId : null;
+				}, 
+				SetSqlQueryParams, UrlKind.Image);
+
 				stream.Close();
+				saved.ReplaceValue("Token", (v) =>
+				{
+					if (v is Guid guid)
+						return _tokenProvider.GenerateToken(guid);
+					return v;
+				});
+
+				/*
 				var res = new BlobUpdateIdToken()
 				{
 					Id = saved.Id,
@@ -102,7 +92,8 @@ public class ImageController : BaseController
 					Mime= f.ContentType,
 					Token = saved.Token.HasValue ? _tokenProvider.GenerateToken(saved.Token.Value) : null
 				};
-				retList.Add(res);
+				*/
+				retList.Add(saved);
             }
             var rval = new ExpandoObject();
             rval.Set("status", "OK");

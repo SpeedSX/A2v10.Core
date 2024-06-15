@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2022 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -6,22 +6,17 @@ namespace A2v10.Xaml;
 
 
 [AttachedProperties("Width,MinWidth")]
-public class Splitter : Container
+public class Splitter(IServiceProvider serviceProvider) : Container
 {
 	public Orientation Orientation { get; set; }
 	public Length? Height { get; set; }
 	public Length? MinWidth { get; set; }
 
-	private readonly IAttachedPropertyManager _attachedPropertyManager;
+	private readonly IAttachedPropertyManager _attachedPropertyManager = serviceProvider.GetRequiredService<IAttachedPropertyManager>();
 
-	public Splitter(IServiceProvider serviceProvider)
-	{
-		_attachedPropertyManager = serviceProvider.GetRequiredService<IAttachedPropertyManager>();
-	}
+    #region Attached Properties
 
-	#region Attached Properties
-
-	public GridLength GetWidth(Object obj)
+    public GridLength GetWidth(Object obj)
 	{
 		var prop = _attachedPropertyManager.GetProperty<Object>("Splitter.Width", obj);
 		if (prop == null)
@@ -99,5 +94,6 @@ public class Splitter : Container
 			throw new XamlException("The splitter must have two panels");
 		if (Orientation == Orientation.Horizontal)
 			throw new XamlException("The horizontal splitter is not yet supported");
+		EndInitAttached(_attachedPropertyManager);
 	}
 }

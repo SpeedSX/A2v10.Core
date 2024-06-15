@@ -7,19 +7,15 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace A2v10.Services;
 
-public class InvokeCommandCSharp : IModelInvokeCommand
+#pragma warning disable CS9113 // Parameter is unread.
+public class InvokeCommandCSharp(IServiceProvider _) : IModelInvokeCommand
+#pragma warning restore CS9113 // Parameter is unread.
 {
-	private readonly IServiceProvider _serivceProvider;
-	private readonly ICurrentUser _currentUser;
+	//private readonly IServiceProvider _serivceProvider = services;
+	//private readonly ICurrentUser _currentUser = services.GetRequiredService<ICurrentUser>();
 
-	public InvokeCommandCSharp(IServiceProvider services)
-	{
-		_serivceProvider = services;
-		_currentUser = services.GetRequiredService<ICurrentUser>();
-	}
-
-	#region IModelInvokeCommand
-	public Task<IInvokeResult> ExecuteAsync(IModelCommand command, ExpandoObject parameters)
+    #region IModelInvokeCommand
+    public Task<IInvokeResult> ExecuteAsync(IModelCommand command, ExpandoObject parameters)
 	{
 		throw new NotImplementedException();
 	}

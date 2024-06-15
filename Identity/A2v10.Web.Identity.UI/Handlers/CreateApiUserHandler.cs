@@ -29,15 +29,11 @@ public record EditUserParams : CreateUserParams
     public Int64 Id { get; init; }
 }
 
-public class CreateApiUserHandler : IClrInvokeTarget
+public class CreateApiUserHandler(IServiceProvider serviceProvider) : IClrInvokeTarget
 {
-    private readonly AppUserStoreOptions<Int64> _userStoreOptions;
-    private readonly IDbContext _dbContext;
-    public CreateApiUserHandler(IServiceProvider serviceProvider)
-    {
-        _userStoreOptions = serviceProvider.GetRequiredService<IOptions<AppUserStoreOptions<Int64>>>().Value;
-        _dbContext = serviceProvider.GetRequiredService<IDbContext>();
-    }
+    private readonly AppUserStoreOptions<Int64> _userStoreOptions = serviceProvider.GetRequiredService<IOptions<AppUserStoreOptions<Int64>>>().Value;
+    private readonly IDbContext _dbContext = serviceProvider.GetRequiredService<IDbContext>();
+
     Boolean IsMultiTenant => _userStoreOptions.MultiTenant ?? false;
 
     public async Task<Object> InvokeAsync(ExpandoObject args)
@@ -58,11 +54,12 @@ public class CreateApiUserHandler : IClrInvokeTarget
 			Memo = args.Get<String>("Memo")
         };
 
-        var createdUser = await _dbContext.ExecuteAndLoadAsync<CreateUserParams, AppUser<Int64>>(_userStoreOptions.DataSource, "a2security.[User.CreateApiUser]", createPrms)
+        var createdUser = await _dbContext.ExecuteAndLoadAsync<CreateUserParams, AppUser<Int64>>(
+                _userStoreOptions.DataSource, $"[{_userStoreOptions.SecuritySchema}].[User.CreateApiUser]", createPrms)
             ?? throw new InvalidOperationException("Error creating API user");
 
         if (IsMultiTenant)
-            await _dbContext.ExecuteAsync(createdUser.Segment, "a2security.[User.Tenant.CreateApiUser]", createdUser);
+            await _dbContext.ExecuteAsync(createdUser.Segment, $"[{_userStoreOptions.SecuritySchema}].[User.Tenant.CreateApiUser]", createdUser);
 
         return createdUser;
     }

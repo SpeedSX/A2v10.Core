@@ -1,16 +1,15 @@
 ﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
 
 using System.IO;
+using System.Reflection;
 using System.Text;
 
 using A2v10.Module.Infrastructure;
 
 namespace A2v10.Services;
 
-public class InternalAppCodeProviderClr : IAppCodeProviderImpl
+public class InternalAppCodeProviderClr(IAppContainer _appContainer) : IAppCodeProviderImpl
 {
-
-	private readonly IAppContainer _appContainer;
 
 	public Boolean IsFileSystem => false;
 
@@ -18,16 +17,11 @@ public class InternalAppCodeProviderClr : IAppCodeProviderImpl
 
 	public Guid? ModuleId => _appContainer.Id;
 
-	public InternalAppCodeProviderClr(IAppContainer appContainer)
-	{
-		_appContainer = appContainer;
-    }
-
     public String NormalizePath(String path)
 	{
-		if (path.StartsWith("$"))
+		if (path.StartsWith('$'))
 		{
-			int ix = path.IndexOf("/");
+			int ix = path.IndexOf('/');
 			path = path[(ix+1).. ];
 		}
 		return path.Replace('\\', '/');
@@ -47,10 +41,19 @@ public class InternalAppCodeProviderClr : IAppCodeProviderImpl
         return new MemoryStream(Encoding.UTF8.GetBytes(_appContainer.GetText(fullPath) ?? String.Empty));
     }
 
+    public Stream? FileStreamResource(String path)
+    {
+		var mainType = _appContainer.GetType();
+		var assembly = Assembly.GetAssembly(mainType)
+			?? throw new InvalidOperationException($"Assembly with type '{mainType}' not found");
+		var resourceName = $"{mainType.Namespace}.{path.Replace('/', '.')}";
+		return assembly.GetManifestResourceStream(resourceName);
+    }
+
     public IEnumerable<String> EnumerateFiles(String? path, String searchPattern)
 	{
 		if (String.IsNullOrEmpty(path))
-			return Enumerable.Empty<String>();
+			return [];
 		if (searchPattern.StartsWith('*'))
 			searchPattern = searchPattern[1..];
 		return _appContainer.EnumerateFiles(path, searchPattern);

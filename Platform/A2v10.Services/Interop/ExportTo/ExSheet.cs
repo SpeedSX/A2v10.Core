@@ -1,36 +1,62 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
+
+using A2v10.Data.Interfaces;
+using System.Globalization;
 
 namespace A2v10.Services.Interop;
-internal class ExSheet
+public class ExSheet
 {
-	readonly IList<ExRow> _body = new List<ExRow>();
-	readonly IList<ExRow> _header = new List<ExRow>();
-	readonly IList<ExRow> _footer = new List<ExRow>();
+	private readonly IFormatProvider _currentNumberFormat;
+	private readonly IFormatProvider _currentDateFormat;
+	readonly List<ExRow> _body = [];
+	readonly List<ExRow> _header = [];
+	readonly List<ExRow> _footer = [];
+	readonly List<ExRow> _headerFlat = [];
+	readonly List<ExRow> _bodyFlat = [];
 
-	public IList<ExColumn> Columns { get; } = new List<ExColumn>();
-	public StylesDictionary Styles { get; } = new StylesDictionary();
-
-	private readonly IFormatProvider _currentFormat;
-
-	public ExSheet(IFormatProvider currentFormat)
+	public ExSheet(IFormatProvider? currentNumberFormat = null, IFormatProvider? currentDateFormat = null)
 	{
-		_currentFormat = currentFormat;
+		_currentNumberFormat = currentNumberFormat ??
+			CultureInfo.CreateSpecificCulture("uk-UA");
+		_currentDateFormat = currentDateFormat ??
+			CultureInfo.CreateSpecificCulture("uk-UA");
+	}
+	public ExSheet(String locale)
+	{
+		_currentNumberFormat = CultureInfo.CreateSpecificCulture(locale);
+		_currentDateFormat = CultureInfo.CreateSpecificCulture(locale);
 	}
 
+	public List<ExColumn> Columns { get; } = [];
+	public StylesDictionary Styles { get; } = new();
 
-	public ExRow GetRow(Int32 rowNo, RowKind kind)
+	private List<ExRow> GetRowsByKind(RowKind kind)
 	{
-		IList<ExRow> _rows = kind switch
-        {
+		return kind switch
+		{
 			RowKind.Header => _header,
 			RowKind.Footer => _footer,
-			RowKind.Body   => _body,
-			_ => throw new DataServiceException($"Invalid RowKind '{kind}'")
-        };
-		while (_rows.Count <= rowNo)
-			_rows.Add(new ExRow() { Kind = kind });
-		return _rows[rowNo];
+			RowKind.Body => _body,
+			RowKind.HeaderFlat => _headerFlat,
+			RowKind.BodyFlat => _bodyFlat,
+			_ => throw new ExportToExcelException($"Invalid RowKind '{kind}'")
+		};
+	}
+    public ExRow GetRow(Int32 rowNo, RowKind kind)
+	{
+		var rows = GetRowsByKind(kind);	
+		while (rows.Count <= rowNo)
+			rows.Add(new ExRow() { Kind = kind });
+		return rows[rowNo];
+	}
+
+	public ExRow AddRow(RowKind kind)
+	{
+		var rows = GetRowsByKind(kind);
+		var nrow = new ExRow() { Kind = kind };
+		rows.Add(nrow);	
+		return nrow;
 	}
 
 	ExCell AddSpanCell(RowKind kind, Int32 row, Int32 col)
@@ -39,13 +65,21 @@ internal class ExSheet
 		return r.SetSpanCell(col);
 	}
 
+
+	public ExCell AddCell(ExRow row, Object? value)
+	{
+		var cell = ExCell.Create(value);
+		row.Cells.Add(cell);
+		cell.StyleIndex = Styles.GetOrCreate(cell.GetStyle(row, String.Empty));
+		return cell;
+	}
 	public ExCell AddCell(Int32 rowNo, ExRow exRow, CellSpan span, String value, String? dataType, String cellClass)
 	{
 		// first empty cell
 		var row = GetRow(rowNo, exRow.Kind);
 		var (cell, index) = row.AddCell();
 		cell.Span = span;
-		cell.SetValue(value, dataType, _currentFormat);
+		cell.SetValue(value, dataType, _currentNumberFormat, _currentDateFormat);
 		cell.StyleIndex = Styles.GetOrCreate(cell.GetStyle(row, cellClass));
 		if (span.Col == 0 && span.Row == 0)
 			return cell;
@@ -80,6 +114,10 @@ internal class ExSheet
 			yield return r;
 		foreach (var r in _footer)
 			yield return r;
+		foreach (var r in _headerFlat)
+			yield return r;
+		foreach (var r in _bodyFlat)
+			yield return r;
 	}
 
 	public ExColumn AddColumn()
@@ -87,6 +125,43 @@ internal class ExSheet
 		var col = new ExColumn();
 		Columns.Add(col);
 		return col;
+	}
+
+	public ExColumn AddColumn(UInt32 width)
+	{
+		var col = AddColumn();
+		if (width != 0)
+			col.Width = width;
+		return col;
+	}
+
+	public static Byte[] CreateFromDataModel(IDataModel model)
+	{
+		var meta = model.Metadata["TRow"];
+		var columns = meta.Fields.Select(f => f.Key).ToList();
+
+		var sheet = new ExSheet();
+
+		var rows = model.Eval<List<ExpandoObject>>("Rows")
+			?? throw new InvalidOperationException("Rows is null");
+
+		var hrow = sheet.AddRow(RowKind.HeaderFlat);
+		foreach (var c in columns)
+		{
+			sheet.AddColumn(); // default width
+			sheet.AddCell(hrow, c);
+		}
+
+		foreach (var row in rows)
+		{
+			var exrow = sheet.AddRow(RowKind.BodyFlat);
+			foreach (var c in columns)
+				sheet.AddCell(exrow, row.Get<Object>(c));
+		}
+
+		var writer = new ExcelWriter();
+		var bytes = writer.SheetToExcel(sheet);
+		return bytes;
 	}
 }
 

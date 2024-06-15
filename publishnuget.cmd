@@ -15,6 +15,8 @@ del /q Platform\A2v10.Platform.Web\bin\Release\*.snupkg
 del /q Platform\A2v10.Services\bin\Release\*.nupkg
 del /q Platform\A2v10.Services\bin\Release\*.snupkg
 del /q Platform\A2v10.Services\bin\Release\*.nupkg
+del /q Platform\A2v10.AppRuntimeBuilder\bin\Release\*.snupkg
+del /q Platform\A2v10.AppRuntimeBuilder\bin\Release\*.nupkg
 
 del /q ViewEngines\A2v10.ViewEngine.Xaml\bin\Release\*.nupkg
 del /q ViewEngines\A2v10.ViewEngine.Xaml\bin\Release\*.snupkg
@@ -25,8 +27,12 @@ del /q ReportEngines\A2v10.ReportEngine.Pdf\bin\Release\*.nupkg
 del /q ReportEngines\A2v10.ReportEngine.Pdf\bin\Release\*.snupkg
 del /q ReportEngines\A2v10.Xaml.Report\bin\Release\*.nupkg
 del /q ReportEngines\A2v10.Xaml.Report\bin\Release\*.snupkg
-del /q ReportEngines\A2v10.ReportEngine.Stimulsoft\bin\Release\*.nupkg
-del /q ReportEngines\A2v10.ReportEngine.Stimulsoft\bin\Release\*.snupkg
+del /q ReportEngines\A2v10.ReportEngine.Script\bin\Release\*.nupkg
+del /q ReportEngines\A2v10.ReportEngine.Script\bin\Release\*.snupkg
+del /q ReportEngines\A2v10.ReportEngine.Excel\bin\Release\*.nupkg
+del /q ReportEngines\A2v10.ReportEngine.Excel\bin\Release\*.snupkg
+rem del /q ReportEngines\A2v10.ReportEngine.Stimulsoft\bin\Release\*.nupkg
+rem del /q ReportEngines\A2v10.ReportEngine.Stimulsoft\bin\Release\*.snupkg
 
 del /q CodeGen\A2v10.Module.Infrastructure\bin\Release\*.nupkg
 del /q CodeGen\A2v10.Module.Infrastructure\bin\Release\*.snupkg
@@ -40,6 +46,9 @@ del /q Extensions\A2v10.Scheduling.Commands\bin\Release\*.nupkg
 del /q Extensions\A2v10.Scheduling.Commands\bin\Release\*.snupkg
 del /q Extensions\A2v10.Scheduling.Infrastructure\bin\Release\*.nupkg
 del /q Extensions\A2v10.Scheduling.Infrastructure\bin\Release\*.snupkg
+
+del /q BlobStorages\AzureBlobStorage\bin\Release\*.nupkg
+del /q BlobStorages\AzureBlobStorage\bin\Release\*.snupkg
 
 dotnet pack -c Release
 
@@ -69,6 +78,9 @@ copy Platform\A2v10.Platform.Web\bin\Release\*.snupkg ..\NuGet.local
 copy Platform\A2v10.Services\bin\Release\*.nupkg ..\NuGet.local
 copy Platform\A2v10.Services\bin\Release\*.snupkg ..\NuGet.local
 
+copy Platform\A2v10.AppRuntimeBuilder\bin\Release\*.nupkg ..\NuGet.local
+copy Platform\A2v10.AppRuntimeBuilder\bin\Release\*.snupkg ..\NuGet.local
+
 copy ViewEngines\A2v10.ViewEngine.Xaml\bin\Release\*.nupkg ..\NuGet.local
 copy ViewEngines\A2v10.ViewEngine.Xaml\bin\Release\*.snupkg ..\NuGet.local
 
@@ -77,6 +89,12 @@ copy ViewEngines\A2v10.ViewEngine.Html\bin\Release\*.snupkg ..\NuGet.local
 
 copy ReportEngines\A2v10.ReportEngine.Pdf\bin\Release\*.nupkg ..\NuGet.local
 copy ReportEngines\A2v10.ReportEngine.Pdf\bin\Release\*.snupkg ..\NuGet.local
+
+copy ReportEngines\A2v10.ReportEngine.Script\bin\Release\*.nupkg ..\NuGet.local
+copy ReportEngines\A2v10.ReportEngine.Script\bin\Release\*.snupkg ..\NuGet.local
+
+copy ReportEngines\A2v10.ReportEngine.Excel\bin\Release\*.nupkg ..\NuGet.local
+copy ReportEngines\A2v10.ReportEngine.Excel\bin\Release\*.snupkg ..\NuGet.local
 
 copy ReportEngines\A2v10.Xaml.Report\bin\Release\*.nupkg ..\NuGet.local
 copy ReportEngines\A2v10.Xaml.Report\bin\Release\*.snupkg ..\NuGet.local
@@ -98,5 +116,10 @@ copy Extensions\A2v10.Scheduling.Commands\bin\Release\*.snupkg ..\NuGet.local
 
 copy Extensions\A2v10.Scheduling.Infrastructure\bin\Release\*.nupkg ..\NuGet.local
 copy Extensions\A2v10.Scheduling.Infrastructure\bin\Release\*.snupkg ..\NuGet.local
+
+copy BlobStorages\AzureBlobStorage\bin\Release\*.nupkg ..\NuGet.local
+copy BlobStorages\AzureBlobStorage\bin\Release\*.snupkg ..\NuGet.local
+
+
 
 pause

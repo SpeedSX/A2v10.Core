@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2023 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 using A2v10.Infrastructure;
 
@@ -28,7 +28,7 @@ public class TreeGrid : Control, ITableControl
 	public Object? IsFolder { get; set; }
 	public RowMarkerStyle MarkerStyle { get; set; }
 	public MarkStyle Mark { get; set; }
-	public TreeGridColumnCollection Columns { get; set; } = new TreeGridColumnCollection();
+	public TreeGridColumnCollection Columns { get; set; } = [];
 	public Boolean Sort { get; set; }
 	public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 	{
@@ -178,6 +178,7 @@ public class TreeGrid : Control, ITableControl
 		base.OnEndInit();
 		foreach (var col in Columns)
 			col.SetParent(this);
+		ContextMenu?.InvokeEndInit();
 	}
 
 	public override void OnSetStyles(RootContainer root)

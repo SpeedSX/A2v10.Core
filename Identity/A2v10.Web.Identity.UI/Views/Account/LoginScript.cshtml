@@ -14,6 +14,7 @@ data: {
 	rememberMe: true,
 	submitted: false,
 	serverError: '',
+	providers: '@Model?.LoginProviders'.split(','),
 	returnUrl: '@Model?.ReturnUrl'
 },
 computed: {
@@ -32,19 +33,34 @@ computed: {
 	},
 	valid() {
 		return !this.invalidEmail && !this.invalidPassword;
+	},
+	externalProviders() {
+		return this.providers.filter(x => x !== 'Local');
+	},
+	hasExternalProviders() {
+		return this.externalProviders.length > 0;
 	}
 },
 methods: {
+	providerLogo(provider) {
+		return `/img/logo/${provider.toLowerCase()}.svg`;
+	},
+	providerHref(provider) {
+		return `/account/openidlogin?provider=${provider}`;
+	},
 	onLoginEnter: function() {
 		this.$refs.pwd.focus();
 	},
 	onPwdEnter: function(ev) {
 		this.submit();
 	},
-	success(code) {
-		switch (code) {
-			case 'SetPassword':
-				alert("SetPassword yet not implemented");
+	success(result) {
+		switch (result.message) {
+			case 'Redirect':
+				window.location.replace(result.url);
+				break;
+			default:
+				alert(`${result.message} yet not implemented`);
 				break;
 		}
 	},
@@ -78,14 +94,13 @@ methods: {
 		formData.append('__RequestVerificationToken', '@Model?.RequestToken');
 		let resp = await fetch('/account/login', {
 			method: 'POST',
+			redirect: 'error',
 			body: formData
 		});
-		if (resp.redirected)
-			window.location.assign(resp.url);
-		else if (resp.ok) {
+		if (resp.ok) {
 			let result = await resp.json();
 			if (result.success)
-				this.success(result.message);
+				this.success(result);
 			else
 				this.fail(result.message);
 		}

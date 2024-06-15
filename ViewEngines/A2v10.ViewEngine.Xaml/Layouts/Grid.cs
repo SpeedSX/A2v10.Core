@@ -1,9 +1,9 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
+using System.Text;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
-using System.Text;
 using System.Text.RegularExpressions;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -22,19 +22,14 @@ public enum AutoFlowMode
 }
 
 [AttachedProperties("Col,Row,ColSpan,RowSpan,VAlign")]
-public class Grid : Container
+public class Grid(IServiceProvider serviceProvider) : Container
 {
 
-	private readonly IAttachedPropertyManager _attachedPropertyManager;
+	private readonly IAttachedPropertyManager _attachedPropertyManager = serviceProvider.GetRequiredService<IAttachedPropertyManager>();
 
-	public Grid(IServiceProvider serviceProvider)
-	{
-		_attachedPropertyManager = serviceProvider.GetRequiredService<IAttachedPropertyManager>();
-	}
+    #region Attached Properties
 
-	#region Attached Properties
-
-	public Int32? GetCol(Object obj)
+    public Int32? GetCol(Object obj)
 	{
 		return _attachedPropertyManager.GetProperty<Int32?>("Grid.Col", obj);
 	}
@@ -61,6 +56,27 @@ public class Grid : Container
 
 	#endregion
 
+	public void SetVAlign(Object obj, AlignItem align)
+	{
+		_attachedPropertyManager.SetProperty("Grid.VAlign", obj, align);
+	}
+	public void SetRow(Object obj, Int32 row)
+	{
+		_attachedPropertyManager.SetProperty("Grid.Row", obj, row);
+	}
+	public void SetCol(Object obj, Int32 col)
+	{
+		_attachedPropertyManager.SetProperty("Grid.Col", obj, col);
+	}
+	public void SetColSpan(Object obj, Int32 colSpan)
+	{
+		_attachedPropertyManager.SetProperty("Grid.ColSpan", obj, colSpan);
+	}
+
+	public void SetRowSpan(Object obj, Int32 rowSpan)
+	{
+		_attachedPropertyManager.SetProperty("Grid.RowSpan", obj, rowSpan);
+	}
 
 	public Length? Height { get; set; }
 	public BackgroundStyle Background { get; set; }
@@ -69,6 +85,9 @@ public class Grid : Container
 	public AlignItem AlignItems { get; set; }
 	public GapSize? Gap { get; set; }
 	public Length? MinWidth { get; set; }
+	public Length? Width { get; set; }
+
+	public Overflow? Overflow { get; set; }
 
 	RowDefinitions? _rows;
 	ColumnDefinitions? _columns;
@@ -77,7 +96,7 @@ public class Grid : Container
 	{
 		get
 		{
-			_rows ??= new RowDefinitions();
+			_rows ??= [];
 			return _rows;
 		}
 		set
@@ -90,7 +109,7 @@ public class Grid : Container
 	{
 		get
 		{
-			_columns ??= new ColumnDefinitions();
+			_columns ??= [];
 			return _columns;
 		}
 		set
@@ -106,10 +125,13 @@ public class Grid : Container
 		var grid = new TagBuilder("div", "grid", IsInGrid);
 		onRender?.Invoke(grid);
 		MergeAttributes(grid, context);
+		grid.AddCssClass(Overflow.ToClass());
 		if (Height != null)
 			grid.MergeStyle("height", Height.Value);
 		if (MinWidth != null)
 			grid.MergeStyle("min-width", MinWidth.ToString());
+		if (Width != null)
+			grid.MergeStyle("width", Width.ToString());
 		if (_rows != null)
 			grid.MergeStyle("grid-template-rows", _rows.ToAttribute());
 		if (_columns != null)
@@ -171,6 +193,12 @@ public class Grid : Container
 			}
 		}
 	}
+
+	protected override void OnEndInit()
+	{
+		base.OnEndInit();
+		EndInitAttached(_attachedPropertyManager);
+	}
 }
 
 public class RowDefinition
@@ -211,14 +239,24 @@ public class ColumnDefinition
 }
 
 [TypeConverter(typeof(ColumnDefinitionsConverter))]
-public class ColumnDefinitions : List<ColumnDefinition>
+public partial class ColumnDefinitions : List<ColumnDefinition>
 {
+
+	const String REPEAT_PATTERN = @"^Repeat\((.+)\)$";
+#if NET7_0_OR_GREATER
+	[GeneratedRegex(REPEAT_PATTERN, RegexOptions.None, "en-US")]
+	private static partial Regex RepeatRegex();
+#else
+	private static Regex REPEAT_REGEX => new(REPEAT_PATTERN, RegexOptions.Compiled);
+	private static Regex RepeatRegex() => REPEAT_REGEX;
+#endif
+
 	public static ColumnDefinitions FromString(String val)
 	{
 		var coll = new ColumnDefinitions();
 		if (val.StartsWith("Repeat"))
 		{
-			var match = Regex.Match(val.Trim(), @"^Repeat\((.+)\)$");
+			var match = RepeatRegex().Match(val.Trim());
 			if (match.Groups.Count < 2)
 				throw new XamlException($"Invalid repeat value '{val}'");
 

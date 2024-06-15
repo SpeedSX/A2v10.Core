@@ -1,7 +1,7 @@
 ﻿// Copyright © 2023 Oleksandr Kukhtin. All rights reserved.
 
 /*20230525-8100*/
-/* tabbled:appheader.js */
+/* tabbed:appheader.js */
 (function () {
 
 	const locale = window.$$locale;
@@ -49,8 +49,8 @@
 		},
 		methods: {
 			async logout() {
-				await http.post('/account/logout2');
-				window.location.assign('/account/login');
+				let res = await http.post('/account/logout2');
+				window.location.assign(`/account/${res.showLogOut ? 'loggedout' : 'login'}`);
 			},
 			profile() {
 				eventBus.$emit('navigateto', { url: '/_profile/index/0'});

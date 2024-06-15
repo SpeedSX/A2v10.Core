@@ -1,4 +1,4 @@
-﻿// Copyright © 2020-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2020-2023 Oleksandr Kukhtin. All rights reserved.
 
 
 using Newtonsoft.Json;
@@ -53,6 +53,6 @@ return function(_this) {{
 		var func = _engine.Evaluate(code);
 		var result = _engine.Invoke(func, _environment);
 
-		return result.ToObject();
+		return result?.ToObject() ?? new Object();
 	}
 }

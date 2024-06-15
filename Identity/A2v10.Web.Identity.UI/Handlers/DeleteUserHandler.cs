@@ -13,15 +13,11 @@ using A2v10.Web.Identity;
 
 namespace A2v10.Identity.UI;
 
-public class DeleteUserHandler : IClrInvokeTarget
+public class DeleteUserHandler(IServiceProvider serviceProvider) : IClrInvokeTarget
 {
-    private readonly AppUserStoreOptions<Int64> _userStoreOptions;
-    private readonly IDbContext _dbContext;
-    public DeleteUserHandler(IServiceProvider serviceProvider)
-    {
-        _userStoreOptions = serviceProvider.GetRequiredService<IOptions<AppUserStoreOptions<Int64>>>().Value;
-        _dbContext = serviceProvider.GetRequiredService<IDbContext>();
-    }
+    private readonly AppUserStoreOptions<Int64> _userStoreOptions = serviceProvider.GetRequiredService<IOptions<AppUserStoreOptions<Int64>>>().Value;
+    private readonly IDbContext _dbContext = serviceProvider.GetRequiredService<IDbContext>();
+
     Boolean IsMultiTenant => _userStoreOptions.MultiTenant ?? false;
 
     public async Task<Object> InvokeAsync(ExpandoObject args)
@@ -38,11 +34,22 @@ public class DeleteUserHandler : IClrInvokeTarget
             Id = Id
         };
 
-        var deletedUser = await _dbContext.ExecuteAndLoadAsync<DeleteUserParams, AppUser<Int64>>(_userStoreOptions.DataSource, "a2security.[User.DeleteUser]", deletePrms)
+        var deletedUser = await _dbContext.ExecuteAndLoadAsync<DeleteUserParams, AppUser<Int64>>(
+            _userStoreOptions.DataSource, $"[{_userStoreOptions.SecuritySchema}].[User.DeleteUser]", deletePrms)
             ?? throw new InvalidOperationException("Error deleting user");
 
         if (IsMultiTenant)
-            await _dbContext.ExecuteAsync(deletedUser.Segment, "a2security.[User.Tenant.DeleteUser]", deletedUser);
+        {
+            var delUser = new ExpandoObject()
+            {
+                {"Id", deletedUser.Id},
+                {"TenantId", TenantId },
+                {"UserName", deletedUser.UserName},
+                {"Email", deletedUser.Email },
+                {"PhoneNumber", deletedUser.PhoneNumber }
+            };
+			await _dbContext.ExecuteExpandoAsync(deletedUser.Segment, $"[{_userStoreOptions.SecuritySchema}].[User.Tenant.DeleteUser]", delUser);
+        }
 
         return new ExpandoObject()
         {

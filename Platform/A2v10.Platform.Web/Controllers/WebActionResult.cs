@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Collections.Generic;
@@ -10,13 +10,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 
 using A2v10.Infrastructure;
+using Microsoft.AspNetCore.ResponseCaching;
 
 namespace A2v10.Platform.Web.Controllers;
 
 public class WebActionResult : IActionResult
 {
-	private readonly List<String> _data = new();
-	private readonly Dictionary<String, String> _headers = new();
+	private readonly List<String> _data = [];
+	private readonly Dictionary<String, String> _headers = [];
 	private readonly String _contentType;
 
 	public WebActionResult(String data, String contentType = MimeTypes.Application.Json)
@@ -39,7 +40,7 @@ public class WebActionResult : IActionResult
 		foreach (var (k, v) in _headers)
 		{
 			resp.Headers.Remove(k);
-			resp.Headers.Add(k, v);
+			resp.Headers.Append(k, v);
 		}
 
 		for (int i=0; i<_data.Count; i++)
@@ -49,8 +50,8 @@ public class WebActionResult : IActionResult
 
 public class WebBinaryActionResult : IActionResult
 {
-	private readonly List<Byte[]> _data = new();
-	private readonly Dictionary<String, String> _headers = new();
+	private readonly List<Byte[]> _data = [];
+	private readonly Dictionary<String, String> _headers = [];
 	private readonly String _contentType;
 	
 	Boolean _cache;
@@ -81,17 +82,18 @@ public class WebBinaryActionResult : IActionResult
 		foreach (var (k, v) in _headers)
 		{
 			resp.Headers.Remove(k);
-			resp.Headers.Add(k, v);
+			resp.Headers.Append(k, v);
 		}
 
 		if (_cache)
 		{
-			resp.GetTypedHeaders().CacheControl =
-			new CacheControlHeaderValue()
+			var cc = new CacheControlHeaderValue()
 			{
-				Private = true,
-				MaxAge = TimeSpan.FromDays(30)
+				Private = true,				
+				MaxAge = TimeSpan.FromDays(30),
 			};
+			resp.GetTypedHeaders().CacheControl = cc;
+
 		}
 
 		for (int i = 0; i < _data.Count; i++)
@@ -99,18 +101,12 @@ public class WebBinaryActionResult : IActionResult
 	}
 }
 
-public class WebExceptionResult : IActionResult
+public class WebExceptionResult(Int32 errorCode, String? message) : IActionResult
 {
-	private readonly Int32 _errorCode;
-	private readonly String _message;
+	private readonly Int32 _errorCode = errorCode;
+	private readonly String _message = message ?? String.Empty;
 
-	public WebExceptionResult(Int32 errorCode, String? message)
-	{
-		_errorCode = errorCode;
-		_message = message ?? String.Empty;
-	}
-
-	public Task ExecuteResultAsync(ActionContext context)
+    public Task ExecuteResultAsync(ActionContext context)
 	{
 		var resp = context.HttpContext.Response;
 		resp.ContentType = MimeTypes.Text.Plain;

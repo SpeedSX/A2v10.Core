@@ -4,24 +4,19 @@ using System.IO;
 
 namespace A2v10.Services;
 
-public class InternalAppCodeProviderFile : IAppCodeProviderImpl
+public class InternalAppCodeProviderFile(String path) : IAppCodeProviderImpl
 {
-	private String AppPath { get; }
+    private String AppPath { get; } = path;
 
-	public Boolean IsFileSystem => true;
+    public Boolean IsFileSystem => true;
 	public Boolean IsLicensed => false;
-	public Guid? ModuleId => null;	
+	public Guid? ModuleId => null;
 
-	public InternalAppCodeProviderFile(String path)
+    public String NormalizePath(String path)
 	{
-		AppPath = path;
-	}
-
-	public String NormalizePath(String path)
-	{
-        if (path.StartsWith("$"))
+        if (path.StartsWith('$'))
         {
-            int ix = path.IndexOf("/");
+            int ix = path.IndexOf('/');
             path = path[(ix + 1)..];
         }
 
@@ -37,13 +32,27 @@ public class InternalAppCodeProviderFile : IAppCodeProviderImpl
         return File.Exists(fullPath);
     }
 
+    private static FileStreamOptions StreamOptions => new()
+    {
+        Mode = FileMode.Open,
+        Access = FileAccess.Read,
+        Share = FileShare.ReadWrite,
+        Options = FileOptions.Asynchronous  | FileOptions.SequentialScan
+    };
+
     public Stream? FileStreamRO(String path)
 	{
 		var fullPath = NormalizePath(path);
 		if (!File.Exists(fullPath))
 			return null;
-        return new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return new FileStream(fullPath,  StreamOptions);
     }
+
+    public Stream? FileStreamResource(String path)
+    {
+        return FileStreamRO(path);
+    }
+
     public IEnumerable<String> EnumerateFiles(String path, String searchPattern)
 	{
 		var fullPath = NormalizePath(path);

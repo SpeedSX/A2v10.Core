@@ -17,12 +17,14 @@ services.AddPlatformIdentityCore<T>()
 
 ```json
 "Identity": {
-	"UserStore": {
-		"DataSource": "ConnectionStringName",
-		"MultiTenant": false,
-		"ValidationInterval": "00:05:00"
-	},
-	"CookiePrefix": "Cookie_Prefix"
+  "UserStore": {
+    "DataSource": "ConnectionStringName",
+    "MultiTenant": false,
+    "ValidationInterval": "00:05:00",
+    "AuthenticatorIssuer": 'IssuerName'
+  },
+  "CookiePrefix": "Cookie_Prefix",
+  "Providers": "Local,..."
 }
 ```
 
@@ -32,6 +34,7 @@ All values are optional.
 
 * [A2v10.Identity.ApiKey](https://www.nuget.org/packages/A2v10.Identity.ApiKey)
 * [A2v10.Identity.Jwt](https://www.nuget.org/packages/A2v10.Identity.Jwt)
+* [A2v10.Identity.UI](https://www.nuget.org/packages/A2v10.Identity.UI)
 
 
 # Feedback

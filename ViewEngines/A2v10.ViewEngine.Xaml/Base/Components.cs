@@ -40,7 +40,7 @@ public class Components : MarkupExtension
 		return null;
 	}
 
-	Object? Load(String baseFileName, IServiceProvider serviceProvider)
+	ComponentDictionary? Load(String baseFileName, IServiceProvider serviceProvider)
 	{
         if (String.IsNullOrEmpty(Pathes))
             return null;
@@ -50,7 +50,7 @@ public class Components : MarkupExtension
 
 		var dict = new ComponentDictionary();
 		foreach (var path in Pathes.Split(','))
-			dict.Append(LoadOneFile(serviceProvider, basePath, path));
+			dict.Append(LoadOneFile(serviceProvider, basePath, path.Trim()));
 		return dict;
 	}
 

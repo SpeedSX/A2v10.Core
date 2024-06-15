@@ -1,27 +1,33 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Xml;
 
 namespace A2v10.Services.Interop;
 
-internal class HtmlReader
+internal partial class HtmlReader(IFormatProvider currentFormat)
 {
-	private readonly ExSheet _sheet;
-	private readonly IFormatProvider _currentFormat;
-
-	public HtmlReader(IFormatProvider currentFormat)
-	{
-		_currentFormat = currentFormat;
-		_sheet = new ExSheet(_currentFormat);
-	}
+	private IFormatProvider _currentNumberFormat = currentFormat;
+	private IFormatProvider _currentDateFormat = currentFormat;
 
 	public ExSheet ReadHtmlSheet(String html)
 	{
 		var doc = GetXmlFromHtml(html);
 		var table = doc.FirstChild;
-		if (table?.Name != "table")
+		if (table == null || table?.Name != "table")
 			throw new ExportToExcelException("Invalid element for Html2Excel. Expected '<table>'.");
+
+		if (table.Attributes != null) {
+			foreach (var attr in table.Attributes.OfType<XmlAttribute>())
+			{
+				if (attr.Name == "data-num-locale")
+					_currentNumberFormat = CultureInfo.CreateSpecificCulture(attr.Value);
+				else if (attr.Name == "data-date-locale")
+					_currentDateFormat = CultureInfo.CreateSpecificCulture(attr.Value);
+			}
+		}
+		var sheet = new ExSheet(_currentNumberFormat, _currentDateFormat);
 
 		var bodyRowNo = 0;
 		var headerRowNo = 0;
@@ -36,34 +42,41 @@ internal class HtmlReader
 			{
 				case "colgroup":
 					foreach (var col in nd.ChildNodes.OfType<XmlNode>().Where(node => node.Name == "col"))
-						AddColumn(col);
+						AddColumn(sheet, col);
 					break;
 				case "tbody":
 					var bodyClassAttr = nd.Attributes?["class"];
 					if (bodyClassAttr?.Value == "col-shadow")
 						continue; // skip shadows
 					foreach (var row in nd.ChildNodes.OfType<XmlNode>().Where(node => node.Name == "tr"))
-						AddRow(row, RowKind.Body, bodyRowNo++);
+						AddRow(sheet, row, RowKind.Body, bodyRowNo++);
 					break;
 				case "thead":
 					foreach (var row in nd.ChildNodes.OfType<XmlNode>().Where(node => node.Name == "tr"))
-						AddRow(row, RowKind.Header, headerRowNo++);
+						AddRow(sheet, row, RowKind.Header, headerRowNo++);
 					break;
 				case "tfoot":
 					foreach (var row in nd.ChildNodes.OfType<XmlNode>().Where(node => node.Name == "tr"))
-						AddRow(row as XmlNode, RowKind.Footer, footerRowNo++);
+						AddRow(sheet, row as XmlNode, RowKind.Footer, footerRowNo++);
 					break;
 			}
 		}
-		return _sheet;
+		return sheet;
 	}
 
-	private static readonly Regex s_colRegEx = new("<col ([\\w=\"\\s:%;-]+)>");
+	const String COL_PATTERN = "<col ([\\w=\"\\s:%;-]+)>";
+#if NET7_0_OR_GREATER
+	[GeneratedRegex(COL_PATTERN, RegexOptions.None, "en-US")]
+	private static partial Regex ColumnRegex();
+#else
+	private static Regex COL_REGEX => new(COL_PATTERN, RegexOptions.Compiled);
+	private static Regex ColumnRegex() => COL_REGEX;
+#endif
 
 	static XmlDocument GetXmlFromHtml(String html)
 	{
-		var xml = s_colRegEx.Replace(html, (math) => $"<col {math.Groups[1].Value} />")
-			.Replace("&nbsp;", "&#160;").Replace("<br>", "&#10;");
+		var xml = ColumnRegex().Replace(html, (math) => $"<col {math.Groups[1].Value} />")
+			.Replace("&nbsp;", "&#160;").Replace("<br>", "&#10;").Replace("<hr>", "&#160;");
 		var doc = new XmlDocument();
 		doc.LoadXml(xml);
 		return doc;
@@ -88,9 +101,9 @@ internal class HtmlReader
 		return node.InnerText;
 	}
 
-	void AddRow(XmlNode src, RowKind kind, Int32 rowNo)
+	static void AddRow(ExSheet sheet, XmlNode src, RowKind kind, Int32 rowNo)
 	{
-		ExRow row = _sheet.GetRow(rowNo, kind);
+		ExRow row = sheet.GetRow(rowNo, kind);
 		if (src.Attributes != null)
 		{
 			var classAttr = src.Attributes["class"];
@@ -127,17 +140,17 @@ internal class HtmlReader
 			}
 
 			String cellText = GetNodeText(cn);
-			_sheet.AddCell(rowNo, row, span, cellText, dataType, cellClass);
+			sheet.AddCell(rowNo, row, span, cellText, dataType, cellClass);
 		}
 	}
 
-	void AddColumn(XmlNode src)
+	static void AddColumn(ExSheet sheet, XmlNode src)
 	{
 		if (src.Attributes == null)
 			return;
 		var classAttr = src.Attributes["class"];
 		var widthAttr = src.Attributes["data-col-width"];
-		ExColumn col = _sheet.AddColumn();
+		ExColumn col = sheet.AddColumn();
 		if (classAttr != null)
 		{
 			// fit, color

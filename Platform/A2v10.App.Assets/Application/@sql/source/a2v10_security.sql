@@ -1,9 +1,10 @@
 ﻿/*
-Copyright © 2008-2023 Oleksandr Kukhtin
+Copyright © 2008-2024 Oleksandr Kukhtin
 
-Last updated : 05 aug 2023
-module version : 8134
+Last updated : 18 mar 2024
+module version : 8267
 */
+
 -- SECURITY
 ------------------------------------------------
 create or alter procedure a2security.FindUserById
@@ -60,6 +61,18 @@ begin
 
 	update a2security.ViewUsers set LastLoginDate = getutcdate(), LastLoginHost = @LastLoginHost 
 	where Id = @Id;
+end
+go
+------------------------------------------------
+create or alter procedure a2security.[User.SetSetPassword]
+@Id bigint,
+@Set bit = 0
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+
+	update a2security.ViewUsers set SetPassword = @Set where Id = @Id;
 end
 go
 ------------------------------------------------
@@ -140,7 +153,7 @@ go
 ------------------------------------------------
 create or alter procedure a2security.FindApiUserByApiKey
 @Host nvarchar(255) = null,
-@ApiKey nvarchar(255) = null
+@ApiKey nvarchar(1023) = null
 as
 begin
 	set nocount on;
@@ -152,9 +165,9 @@ begin
 	set @status = N'ApiKey=' + @ApiKey;
 	set @code = 65; /*fail*/
 
-	declare @user table(Id bigint, Tenant int, Segment nvarchar(255), [Name] nvarchar(255), ClientId nvarchar(255), AllowIP nvarchar(255));
-	insert into @user(Id, Tenant, Segment, [Name], ClientId, AllowIP)
-	select top(1) u.Id, u.Tenant, Segment, [Name]=u.UserName, s.ClientId, s.AllowIP 
+	declare @user table(Id bigint, Tenant int, Segment nvarchar(255), [Name] nvarchar(255), ClientId nvarchar(255), AllowIP nvarchar(255), Locale nvarchar(32));
+	insert into @user(Id, Tenant, Segment, [Name], ClientId, AllowIP, Locale)
+	select top(1) u.Id, u.Tenant, Segment, [Name]=u.UserName, s.ClientId, s.AllowIP, u.Locale 
 	from a2security.Users u inner join a2security.ApiUserLogins s on u.Id = s.[User] and u.Tenant = s.Tenant
 	where u.Void=0 and s.Mode = N'ApiKey' and s.ApiKey=@ApiKey;
 	
@@ -162,13 +175,53 @@ begin
 	begin
 		set @code = 64 /*sucess*/;
 		update a2security.Users set LastLoginDate=getutcdate(), LastLoginHost=@Host
-		from @user t inner join a2security.Users u on t.Id = u.Id;
+		  from @user t inner join a2security.Users u on t.Id = u.Id;
 	end
 
 	--insert into a2security.[Log] (UserId, Severity, Code, Host, [Message])
 		--values (0, N'I', @code, @Host, @status);
 
 	select * from @user;
+end
+go
+------------------------------------------------
+create or alter procedure a2security.FindUserByExternalLogin
+@LoginProvider nvarchar(255),
+@ProviderKey nvarchar(1024)
+as
+begin
+	set nocount on;
+	set transaction isolation level read uncommitted;
+
+	declare @userId bigint;
+	select @userId = [User] from a2security.ExternalUserLogins e
+	where LoginProvider=@LoginProvider and ProviderKey = @ProviderKey;
+
+	update a2security.Users set LastLoginDate = getutcdate() where Id = @userId;
+
+	select u.* from a2security.ViewUsers u
+	where Id = @userId
+end
+go
+------------------------------------------------
+create or alter procedure a2security.[User.AddExternalLogin]
+@Tenant int = 1,
+@Id bigint,
+@LoginProvider nvarchar(255),
+@ProviderKey nvarchar(1024)
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+	set xact_abort on;
+
+	begin tran;
+	delete from a2security.ExternalUserLogins where 
+		Tenant = @Tenant and [User] = @Id and LoginProvider = @LoginProvider;
+
+	insert into a2security.ExternalUserLogins(Tenant, [User], LoginProvider, ProviderKey)
+	values (@Tenant, @Id, @LoginProvider, @ProviderKey);
+	commit tran;
 end
 go
 ------------------------------------------------
@@ -262,7 +315,8 @@ create or alter procedure a2security.[User.UpdateParts]
 @PersonName nvarchar(255) = null,
 @EmailConfirmed bit = null,
 @FirstName nvarchar(255) = null,
-@LastName nvarchar(255) = null
+@LastName nvarchar(255) = null,
+@Locale nvarchar(32) = null
 as
 begin
 	set nocount on;
@@ -271,15 +325,43 @@ begin
 	update a2security.Users set 
 		PhoneNumber = isnull(@PhoneNumber, PhoneNumber),
 		PersonName = isnull(@PersonName, PersonName),
-		EmailConfirmed = isnull(@EmailConfirmed, EmailConfirmed)
+		EmailConfirmed = isnull(@EmailConfirmed, EmailConfirmed),
+		Locale = isnull(@Locale, Locale)
 	where Id = @Id;
+end
+go
+------------------------------------------------
+create or alter procedure a2security.[User.SetAuthenticatorKey]
+@Id bigint,
+@AuthenticatorKey nvarchar(64)
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+
+	update a2security.Users set AuthenticatorKey = @AuthenticatorKey  where Id = @Id;
+end
+go
+------------------------------------------------
+create or alter procedure a2security.[User.SetTwoFactorEnabled]
+@Id bigint,
+@TwoFactorEnabled bit
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+
+	if @TwoFactorEnabled = 1
+		update a2security.Users set TwoFactorEnabled = 1 where Id = @Id;
+	else
+		update a2security.Users set TwoFactorEnabled = 0, AuthenticatorKey = null where Id = @Id;
 end
 go
 ------------------------------------------------
 create or alter procedure a2security.[User.CreateApiUser]
 @UserId bigint,
 @TenantId int = 1,
-@ApiKey nvarchar(255),
+@ApiKey nvarchar(1023),
 @Name nvarchar(255) = null,
 @PersonName nvarchar(255) = null,
 @Memo nvarchar(255) = null
@@ -390,3 +472,58 @@ begin
 	select Id, PersonName, PhoneNumber, Memo from a2security.ViewUsers where Id = @Id and Tenant = @TenantId;
 end
 go
+------------------------------------------------
+create or alter procedure a2security.[AddToken]
+@Tenant int = 1,
+@Id bigint,
+@Provider nvarchar(64),
+@Token nvarchar(255),
+@Expires datetime,
+@Remove nvarchar(255) = null
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+	set xact_abort on;
+	begin tran;
+	insert into a2security.RefreshTokens(Tenant, UserId, [Provider], Token, Expires)
+		values (@Tenant, @Id, @Provider, @Token, @Expires);
+	if @Remove is not null
+		delete from a2security.RefreshTokens 
+		where Tenant = @Tenant and UserId = @Id and [Provider] = @Provider and Token = @Remove;
+	commit tran;
+end
+go
+------------------------------------------------
+create or alter procedure a2security.[GetToken]
+@Tenant int = 1,
+@Id bigint,
+@Provider nvarchar(255),
+@Token nvarchar(255)
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+
+	select [Token], UserId, Expires from a2security.RefreshTokens
+	where Tenant = @Tenant and UserId = @Id and [Provider] = @Provider and Token = @Token;
+end
+go
+
+------------------------------------------------
+create or alter procedure a2security.[RemoveToken]
+@Tenant int = 1,
+@Id bigint,
+@Provider nvarchar(255),
+@Token nvarchar(511)
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+	set xact_abort on;
+
+	delete from a2security.RefreshTokens 
+	where Tenant = @Tenant and UserId = @Id and [Provider] = @Provider and Token = @Token;
+end
+go
+

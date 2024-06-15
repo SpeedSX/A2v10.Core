@@ -1,21 +1,28 @@
 /*
-Copyright © 2008-2023 Oleksandr Kukhtin
+Copyright © 2008-2024 Oleksandr Kukhtin
 
-Last updated : 13 aug 2023
-module version : 8137
+Last updated : 17 mar 2024
+module version : 8267
 */
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.SCHEMATA where SCHEMA_NAME=N'a2sys')
-	exec sp_executesql N'create schema a2sys';
+	exec sp_executesql N'create schema a2sys authorization dbo';
 go
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.SCHEMATA where SCHEMA_NAME=N'a2security')
-	exec sp_executesql N'create schema a2security';
+	exec sp_executesql N'create schema a2security authorization dbo';
 go
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.SCHEMATA where SCHEMA_NAME=N'a2ui')
-	exec sp_executesql N'create schema a2ui';
+	exec sp_executesql N'create schema a2ui authorization dbo';
 go
+
+------------------------------------------------
+alter authorization on schema::a2sys to dbo;
+alter authorization on schema::a2security to dbo;
+alter authorization on schema::a2ui to dbo;
+go
+
 ------------------------------------------------
 grant execute on schema ::a2sys to public;
 grant execute on schema ::a2security to public;
@@ -77,6 +84,7 @@ create table a2security.Users
 	SecurityStamp2 nvarchar(max) null,
 	PasswordHash2 nvarchar(max) null,
 	TwoFactorEnabled bit not null constraint DF_Users_TwoFactorEnabled default(0),
+	AuthenticatorKey nvarchar(64) null,
 	Email nvarchar(255) null,
 	EmailConfirmed bit not null constraint DF_Users_EmailConfirmed default(0),
 	PhoneNumber nvarchar(255) null,
@@ -94,9 +102,19 @@ create table a2security.Users
 	Segment nvarchar(32) null,
 	SetPassword bit,
 	IsApiUser bit constraint DF_UsersIsApiUser default(0),
+	IsExternalLogin bit constraint DF_UsersIsExternalLogin default(0),
+	IsBlocked bit constraint DF_UsersIsBlocked default(0),
 	UtcDateCreated datetime not null constraint DF_Users_UtcDateCreated default(getutcdate()),
 	constraint PK_Users primary key (Tenant, Id)
 );
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2security' and TABLE_NAME = N'Users' and COLUMN_NAME = N'IsBlocked')
+	alter table a2security.Users add IsBlocked bit constraint DF_UsersIsBlocked default(0);
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2security' and TABLE_NAME = N'Users' and COLUMN_NAME = N'AuthenticatorKey')
+	alter table a2security.Users add AuthenticatorKey nvarchar(64) null;
 go
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2security' and TABLE_NAME=N'ApiUserLogins')
@@ -107,7 +125,7 @@ create table a2security.ApiUserLogins
 	[Mode] nvarchar(16) not null, -- ApiKey, OAuth2, JWT
 	[ClientId] nvarchar(255),
 	[ClientSecret] nvarchar(255),
-	[ApiKey] nvarchar(255),
+	[ApiKey] nvarchar(1023),
 	[AllowIP] nvarchar(1024),
 	Memo nvarchar(255),
 	RedirectUrl nvarchar(255),
@@ -115,6 +133,20 @@ create table a2security.ApiUserLogins
 	constraint PK_ApiUserLogins primary key clustered ([User], Tenant, Mode) with (fillfactor = 70),
 	constraint FK_ApiUserLogins_User_Users foreign key (Tenant, [User]) references a2security.Users(Tenant, Id)
 
+);
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2security' and TABLE_NAME=N'ExternalUserLogins')
+create table a2security.ExternalUserLogins
+(
+	[User] bigint not null,
+	Tenant int not null 
+		constraint FK_ExternalUserLogins_Tenant_Tenants foreign key references a2security.Tenants(Id),
+	[LoginProvider] nvarchar(255) not null,
+	[ProviderKey] nvarchar(max) not null,
+	[UtcDateModified] datetime not null constraint DF_ExternalUserLogins_DateModified default(getutcdate()),
+	constraint PK_ExternalUserLogins primary key clustered ([User], Tenant, LoginProvider) with (fillfactor = 70),
+	constraint FK_ExternalUserLogins_User_Users foreign key (Tenant, [User]) references a2security.Users(Tenant, Id)
 );
 go
 ------------------------------------------------
@@ -135,13 +167,27 @@ create table a2security.DeletedUsers
 );
 go
 ------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2security' and TABLE_NAME=N'RefreshTokens')
+create table a2security.RefreshTokens
+(
+	UserId bigint not null,
+	Tenant int not null 
+		constraint FK_RefreshTokens_Tenant_Tenants foreign key references a2security.Tenants(Id),
+	[Provider] nvarchar(64) not null,
+	[Token] nvarchar(255) not null,
+	Expires datetime not null,
+		constraint FK_RefreshTokens_UserId_Users foreign key (Tenant, UserId) references a2security.Users(Tenant, Id),
+	constraint PK_RefreshTokens primary key (Tenant, UserId, [Provider], Token) with (fillfactor = 70),
+);
+go
+------------------------------------------------
 create or alter view a2security.ViewUsers
 as
 	select Id, UserName, DomainUser, PasswordHash, SecurityStamp, Email, PhoneNumber,
 		LockoutEnabled, AccessFailedCount, LockoutEndDateUtc, TwoFactorEnabled, [Locale],
 		PersonName, Memo, Void, LastLoginDate, LastLoginHost, Tenant, EmailConfirmed,
 		PhoneNumberConfirmed, RegisterHost, ChangePasswordEnabled, Segment,
-		SecurityStamp2, PasswordHash2, SetPassword
+		SecurityStamp2, PasswordHash2, SetPassword, IsBlocked, AuthenticatorKey
 	from a2security.Users u
 	where Void = 0 and Id <> 0;
 go
@@ -231,9 +277,15 @@ create table a2ui.Menu
 );
 go
 -- migrations
-------------------------------------------------
+-------------------------------------------------
+if (exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2security' and TABLE_NAME = N'ApiUserLogins' and COLUMN_NAME = N'ApiKey' and CHARACTER_MAXIMUM_LENGTH <> 1023))
+	alter table a2security.ApiUserLogins alter column ApiKey nvarchar(1023);
+go
 if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2security' and TABLE_NAME = N'Users' and COLUMN_NAME = N'IsApiUser')
 	alter table a2security.Users add IsApiUser bit constraint DF_UsersIsApiUser default(0) with values;
+go
+if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2security' and TABLE_NAME = N'Users' and COLUMN_NAME = N'IsExternalLogin')
+	alter table a2security.Users add IsExternalLogin bit constraint DF_UsersIsExternalLogin default(0) with values;
 go
 if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2ui' and TABLE_NAME = N'Menu' and COLUMN_NAME = N'IsDevelopment')
 	alter table a2ui.Menu add [IsDevelopment] bit constraint DF_Menu_IsDevelopment default(0) with values;
@@ -279,11 +331,12 @@ go
 
 
 /*
-Copyright © 2008-2023 Oleksandr Kukhtin
+Copyright © 2008-2024 Oleksandr Kukhtin
 
-Last updated : 05 aug 2023
-module version : 8134
+Last updated : 18 mar 2024
+module version : 8267
 */
+
 -- SECURITY
 ------------------------------------------------
 create or alter procedure a2security.FindUserById
@@ -340,6 +393,18 @@ begin
 
 	update a2security.ViewUsers set LastLoginDate = getutcdate(), LastLoginHost = @LastLoginHost 
 	where Id = @Id;
+end
+go
+------------------------------------------------
+create or alter procedure a2security.[User.SetSetPassword]
+@Id bigint,
+@Set bit = 0
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+
+	update a2security.ViewUsers set SetPassword = @Set where Id = @Id;
 end
 go
 ------------------------------------------------
@@ -420,7 +485,7 @@ go
 ------------------------------------------------
 create or alter procedure a2security.FindApiUserByApiKey
 @Host nvarchar(255) = null,
-@ApiKey nvarchar(255) = null
+@ApiKey nvarchar(1023) = null
 as
 begin
 	set nocount on;
@@ -432,9 +497,9 @@ begin
 	set @status = N'ApiKey=' + @ApiKey;
 	set @code = 65; /*fail*/
 
-	declare @user table(Id bigint, Tenant int, Segment nvarchar(255), [Name] nvarchar(255), ClientId nvarchar(255), AllowIP nvarchar(255));
-	insert into @user(Id, Tenant, Segment, [Name], ClientId, AllowIP)
-	select top(1) u.Id, u.Tenant, Segment, [Name]=u.UserName, s.ClientId, s.AllowIP 
+	declare @user table(Id bigint, Tenant int, Segment nvarchar(255), [Name] nvarchar(255), ClientId nvarchar(255), AllowIP nvarchar(255), Locale nvarchar(32));
+	insert into @user(Id, Tenant, Segment, [Name], ClientId, AllowIP, Locale)
+	select top(1) u.Id, u.Tenant, Segment, [Name]=u.UserName, s.ClientId, s.AllowIP, u.Locale 
 	from a2security.Users u inner join a2security.ApiUserLogins s on u.Id = s.[User] and u.Tenant = s.Tenant
 	where u.Void=0 and s.Mode = N'ApiKey' and s.ApiKey=@ApiKey;
 	
@@ -442,13 +507,53 @@ begin
 	begin
 		set @code = 64 /*sucess*/;
 		update a2security.Users set LastLoginDate=getutcdate(), LastLoginHost=@Host
-		from @user t inner join a2security.Users u on t.Id = u.Id;
+		  from @user t inner join a2security.Users u on t.Id = u.Id;
 	end
 
 	--insert into a2security.[Log] (UserId, Severity, Code, Host, [Message])
 		--values (0, N'I', @code, @Host, @status);
 
 	select * from @user;
+end
+go
+------------------------------------------------
+create or alter procedure a2security.FindUserByExternalLogin
+@LoginProvider nvarchar(255),
+@ProviderKey nvarchar(1024)
+as
+begin
+	set nocount on;
+	set transaction isolation level read uncommitted;
+
+	declare @userId bigint;
+	select @userId = [User] from a2security.ExternalUserLogins e
+	where LoginProvider=@LoginProvider and ProviderKey = @ProviderKey;
+
+	update a2security.Users set LastLoginDate = getutcdate() where Id = @userId;
+
+	select u.* from a2security.ViewUsers u
+	where Id = @userId
+end
+go
+------------------------------------------------
+create or alter procedure a2security.[User.AddExternalLogin]
+@Tenant int = 1,
+@Id bigint,
+@LoginProvider nvarchar(255),
+@ProviderKey nvarchar(1024)
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+	set xact_abort on;
+
+	begin tran;
+	delete from a2security.ExternalUserLogins where 
+		Tenant = @Tenant and [User] = @Id and LoginProvider = @LoginProvider;
+
+	insert into a2security.ExternalUserLogins(Tenant, [User], LoginProvider, ProviderKey)
+	values (@Tenant, @Id, @LoginProvider, @ProviderKey);
+	commit tran;
 end
 go
 ------------------------------------------------
@@ -542,7 +647,8 @@ create or alter procedure a2security.[User.UpdateParts]
 @PersonName nvarchar(255) = null,
 @EmailConfirmed bit = null,
 @FirstName nvarchar(255) = null,
-@LastName nvarchar(255) = null
+@LastName nvarchar(255) = null,
+@Locale nvarchar(32) = null
 as
 begin
 	set nocount on;
@@ -551,15 +657,43 @@ begin
 	update a2security.Users set 
 		PhoneNumber = isnull(@PhoneNumber, PhoneNumber),
 		PersonName = isnull(@PersonName, PersonName),
-		EmailConfirmed = isnull(@EmailConfirmed, EmailConfirmed)
+		EmailConfirmed = isnull(@EmailConfirmed, EmailConfirmed),
+		Locale = isnull(@Locale, Locale)
 	where Id = @Id;
+end
+go
+------------------------------------------------
+create or alter procedure a2security.[User.SetAuthenticatorKey]
+@Id bigint,
+@AuthenticatorKey nvarchar(64)
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+
+	update a2security.Users set AuthenticatorKey = @AuthenticatorKey  where Id = @Id;
+end
+go
+------------------------------------------------
+create or alter procedure a2security.[User.SetTwoFactorEnabled]
+@Id bigint,
+@TwoFactorEnabled bit
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+
+	if @TwoFactorEnabled = 1
+		update a2security.Users set TwoFactorEnabled = 1 where Id = @Id;
+	else
+		update a2security.Users set TwoFactorEnabled = 0, AuthenticatorKey = null where Id = @Id;
 end
 go
 ------------------------------------------------
 create or alter procedure a2security.[User.CreateApiUser]
 @UserId bigint,
 @TenantId int = 1,
-@ApiKey nvarchar(255),
+@ApiKey nvarchar(1023),
 @Name nvarchar(255) = null,
 @PersonName nvarchar(255) = null,
 @Memo nvarchar(255) = null
@@ -670,3 +804,58 @@ begin
 	select Id, PersonName, PhoneNumber, Memo from a2security.ViewUsers where Id = @Id and Tenant = @TenantId;
 end
 go
+------------------------------------------------
+create or alter procedure a2security.[AddToken]
+@Tenant int = 1,
+@Id bigint,
+@Provider nvarchar(64),
+@Token nvarchar(255),
+@Expires datetime,
+@Remove nvarchar(255) = null
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+	set xact_abort on;
+	begin tran;
+	insert into a2security.RefreshTokens(Tenant, UserId, [Provider], Token, Expires)
+		values (@Tenant, @Id, @Provider, @Token, @Expires);
+	if @Remove is not null
+		delete from a2security.RefreshTokens 
+		where Tenant = @Tenant and UserId = @Id and [Provider] = @Provider and Token = @Remove;
+	commit tran;
+end
+go
+------------------------------------------------
+create or alter procedure a2security.[GetToken]
+@Tenant int = 1,
+@Id bigint,
+@Provider nvarchar(255),
+@Token nvarchar(255)
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+
+	select [Token], UserId, Expires from a2security.RefreshTokens
+	where Tenant = @Tenant and UserId = @Id and [Provider] = @Provider and Token = @Token;
+end
+go
+
+------------------------------------------------
+create or alter procedure a2security.[RemoveToken]
+@Tenant int = 1,
+@Id bigint,
+@Provider nvarchar(255),
+@Token nvarchar(511)
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+	set xact_abort on;
+
+	delete from a2security.RefreshTokens 
+	where Tenant = @Tenant and UserId = @Id and [Provider] = @Provider and Token = @Token;
+end
+go
+

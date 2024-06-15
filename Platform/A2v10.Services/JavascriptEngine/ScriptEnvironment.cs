@@ -1,4 +1,4 @@
-﻿// Copyright © 2021-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2021-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System.Text;
 using System.IO;
@@ -15,7 +15,6 @@ using A2v10.Data.Interfaces;
 namespace A2v10.Services.Javascript;
 
 #pragma warning disable IDE1006 // Naming Styles
-#pragma warning disable CA1822 // Mark members as static
 
 public class ScriptEnvironment
 {
@@ -40,7 +39,9 @@ public class ScriptEnvironment
 
     }
 
+#pragma warning disable CA1822 // Mark members as static
 	public void SetPath(String _/*path*/)
+#pragma warning restore CA1822 // Mark members as static
 	{
 		//_currentPath = path;
 	}
@@ -53,8 +54,7 @@ public class ScriptEnvironment
 		String? source = prms.Get<String>("source");
 		String command = prms.GetNotNull<String>("procedure");
 		Boolean forCurrentUser = prms.Get<Boolean>("forCurrentUser");
-		ExpandoObject? dmParams = prms.Get<ExpandoObject>("parameters")
-			?? new ExpandoObject();
+		ExpandoObject? dmParams = prms.Get<ExpandoObject>("parameters") ?? [];
 		if (forCurrentUser)
 		{
 			SetCurrentUserParams(dmParams);
@@ -72,7 +72,7 @@ public class ScriptEnvironment
 
         Boolean forCurrentUser = prms.Get<Boolean>("forCurrentUser");
         ExpandoObject? dmParams = prms.Get<ExpandoObject>("parameters")
-            ?? new ExpandoObject();
+            ?? [];
 		if (forCurrentUser)
 		{
 			SetCurrentUserParams(dmParams);
@@ -88,8 +88,7 @@ public class ScriptEnvironment
 		String? source = prms.Get<String>("source");
 		String command = prms.GetNotNull<String>("procedure");
         Boolean forCurrentUser = prms.Get<Boolean>("forCurrentUser");
-        ExpandoObject? dmParams = prms.Get<ExpandoObject>("parameters")
-            ?? new ExpandoObject();
+        ExpandoObject? dmParams = prms.Get<ExpandoObject>("parameters") ?? [];
 		if (forCurrentUser)
 		{
 			SetCurrentUserParams(dmParams);
@@ -113,8 +112,10 @@ public class ScriptEnvironment
 		throw new NotImplementedException();
 	}
 
-    public String generateApiKey()
-    {
+#pragma warning disable CA1822 // Mark members as static
+	public String generateApiKey()
+#pragma warning restore CA1822 // Mark members as static
+	{
 		Int32 size = 48;
 		Byte[] data = RandomNumberGenerator.GetBytes(size);
 		String res = Convert.ToBase64String(data);
@@ -122,7 +123,9 @@ public class ScriptEnvironment
 		return res;
 	}
 
+#pragma warning disable CA1822 // Mark members as static
 	public String toBase64(String source, int codePage, bool safe)
+#pragma warning restore CA1822 // Mark members as static
 	{
 		var enc = Encoding.GetEncoding(codePage, new EncoderReplacementFallback(String.Empty), DecoderFallback.ReplacementFallback);
 		var bytes = enc.GetBytes(source);
@@ -161,6 +164,5 @@ return function(_this, prms, args) {{
     }
 }
 
-#pragma warning restore CA1822 // Mark members as static
 #pragma warning restore IDE1006 // Naming Styles
 

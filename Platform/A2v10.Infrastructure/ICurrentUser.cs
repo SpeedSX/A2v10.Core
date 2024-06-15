@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Dynamic;
 
 namespace A2v10.Infrastructure;
@@ -19,6 +18,7 @@ public interface IUserIdentity
 	Boolean IsTenantAdmin { get; }
 
 	void SetInitialTenantId(Int32 tenant);
+	IEnumerable<String>? Roles { get; }
 }
 
 public interface IUserState
@@ -41,8 +41,9 @@ public interface ICurrentUser
 	public IUserLocale Locale { get; }
 	void SetCompanyId(Int64 id);
 	void SetInitialTenantId(Int32 tenantId);
-	void SetReadOnly(Boolean readOnly);
+	void SetUserState(Boolean admin, Boolean readOnly, String? permissions);
 	void AddModules(IEnumerable<Guid> modules);
 	ExpandoObject DefaultParams();
+	Boolean IsPermissionEnabled(String key, PermissionFlag flag);
 }
 

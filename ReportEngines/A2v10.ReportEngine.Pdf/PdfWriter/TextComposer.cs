@@ -6,21 +6,16 @@ using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 
 using A2v10.Xaml.Report;
+using A2v10.ReportEngine.Script;
 
 namespace A2v10.ReportEngine.Pdf;
 
-internal class TextComposer : FlowElementComposer
+internal class TextComposer(Text text, RenderContext context) : FlowElementComposer
 {
-	private readonly Text _text;
-	private readonly RenderContext _context;
+	private readonly Text _text = text;
+	private readonly RenderContext _context = context;
 
-	public TextComposer(Text text, RenderContext context)
-	{
-		_text = text;
-		_context = context;
-	}
-
-	void ApplyRuntimeStyle(TextDescriptor descr)
+    void ApplyRuntimeStyle(TextDescriptor descr)
 	{
 		var rs = _text.RuntimeStyle;
 		if (rs == null)
@@ -39,7 +34,7 @@ internal class TextComposer : FlowElementComposer
 		descr.DefaultTextStyle(ts);
 	}
 
-	TextSpanDescriptor? ApplyRuntimeStyle(TextSpanDescriptor? descr, ContentElement elem)
+	static TextSpanDescriptor? ApplyRuntimeStyle(TextSpanDescriptor? descr, ContentElement elem)
 	{
 		if (descr == null)
 			return descr;

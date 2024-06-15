@@ -1,4 +1,4 @@
-﻿// Copyright © 2022-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2022-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Collections.Generic;
@@ -23,26 +23,20 @@ public record TenantInfo : ITenantInfo
 	public String Procedure => $"[{_schema}].[SetTenantId]";
 
 	public IEnumerable<TenantInfoParam> Params =>
-		new List<TenantInfoParam>() {
-			new TenantInfoParam("@TenantId", _tenantId)
-		};
+		[
+			new("@TenantId", _tenantId)
+		];
 }
 
-public class WebTenantManager : ITenantManager
+public class WebTenantManager(ICurrentUser currentUser, IOptions<AppOptions> appOptions,
+    IOptions<AppUserStoreOptions<Int64>> userStoreOptions) : ITenantManager
 {
-	private readonly ICurrentUser _currentUser;
-	private readonly AppOptions _appOptions;
-	private readonly AppUserStoreOptions<Int64> _userStoreOptions;
-	public WebTenantManager(ICurrentUser currentUser, IOptions<AppOptions> appOptions,
-		IOptions<AppUserStoreOptions<Int64>> userStoreOptions)
-    {
-		_currentUser = currentUser;
-		_appOptions = appOptions.Value;
-		_userStoreOptions = userStoreOptions.Value;
-	}
+	private readonly ICurrentUser _currentUser = currentUser;
+	private readonly AppOptions _appOptions = appOptions.Value;
+	private readonly AppUserStoreOptions<Int64> _userStoreOptions = userStoreOptions.Value;
 
-	#region ITenantManager
-	public ITenantInfo? GetTenantInfo(String? source)
+    #region ITenantManager
+    public ITenantInfo? GetTenantInfo(String? source)
 	{
 		if (!_appOptions.MultiTenant)
 			return null;

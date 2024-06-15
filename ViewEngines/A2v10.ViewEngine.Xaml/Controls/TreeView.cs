@@ -1,8 +1,9 @@
-﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Alex Kukhtin. All rights reserved.
 
-using A2v10.Infrastructure;
 using System.Collections.Generic;
 using System.Text;
+
+using A2v10.Infrastructure;
 
 namespace A2v10.Xaml;
 
@@ -97,9 +98,12 @@ public class TreeView : Control
 	public Boolean? Indent { get; set; }
 	public Command? DoubleClick { get; set; }
 
-	public TreeViewItemCollection Children { get; set; } = new TreeViewItemCollection();
+	public TreeViewItemCollection Children { get; set; } = [];
 
 	public DropDownMenu? ContextMenu { get; set; }
+
+	public BackgroundStyle Background { get; set; }
+	public Boolean Border { get; set; }
 
 	public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 	{
@@ -121,6 +125,10 @@ public class TreeView : Control
 			cont.AddCssClass($"tree-view-{Style.ToString().ToKebabCase()}");
 		if (Indent != null && Indent.Value == false)
 			cont.AddCssClass("no-indent");
+
+		if (Background != BackgroundStyle.Default)
+			cont.AddCssClass("background-" + Background.ToString().ToKebabCase());
+		cont.AddCssClassBool(Border, "border");
 
 		var isBind = GetBinding(nameof(ItemsSource));
 		if (isBind != null)

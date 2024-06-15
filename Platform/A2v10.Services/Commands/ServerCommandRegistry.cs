@@ -1,4 +1,4 @@
-﻿// Copyright © 2020-2021 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2020-2023 Oleksandr Kukhtin. All rights reserved.
 
 
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +24,7 @@ public static class ServerCommandRegistry
 			// new
 			ModelCommandType.csharp => new InvokeCommandCSharp(serviceProvider),
 			ModelCommandType.signal => new InvokeCommandSignal(serviceProvider),
+			ModelCommandType.auto => new InvokeCommandAuto(serviceProvider),
 			// deprectated
 			ModelCommandType.startProcess or ModelCommandType.resumeProcess => throw new DataServiceException("Workflow commands are not supported in this version"),
 			ModelCommandType.script => throw new DataServiceException("script command is not supported"),

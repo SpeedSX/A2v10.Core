@@ -1,4 +1,4 @@
-﻿// Copyright © 2021-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2021-2023 Oleksandr Kukhtin. All rights reserved.
 
 using A2v10.Infrastructure;
 
@@ -9,7 +9,7 @@ public class AppXamlReaderService : XamlReaderService
 
 	public AppXamlReaderService(IXamlPartProvider partProvider, IAppCodeProvider codeProvider)
 	{
-		_options = new XamlServicesOptions(Array.Empty<NamespaceDef>())
+		_options = new XamlServicesOptions([])
 		{
 			OnCreateReader = (rdr) =>
 			{

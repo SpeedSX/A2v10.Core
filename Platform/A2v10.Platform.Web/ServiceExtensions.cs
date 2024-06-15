@@ -1,4 +1,4 @@
-﻿// Copyright © 2020-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2020-2023 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 
@@ -29,7 +29,8 @@ public static class ServiceExtensions
 
 		services.AddScoped<IApplicationHost, WebApplicationHost>()
 		.AddScoped<ITenantManager, WebTenantManager>()
-		.AddScoped<IAppTenantManager, AppTenantManager>();
+		.AddScoped<IAppTenantManager, AppTenantManager>()
+		.AddScoped<IDataScripter, VueDataScripter>();
 
 		services.AddScoped<WebLocalizer>()
 			.AddScoped<ILocalizer>(s => s.GetRequiredService<WebLocalizer>())
@@ -83,7 +84,7 @@ public static class ServiceExtensions
 		return services;
 	}
 
-    public static IServiceCollection AddInvokeTargets(this IServiceCollection services, Action<InvokeEngineFactory> action)
+	public static IServiceCollection AddInvokeTargets(this IServiceCollection services, Action<InvokeEngineFactory> action)
 	{
 		var invokeEngineFactory = new InvokeEngineFactory();
 		action.Invoke(invokeEngineFactory);
@@ -108,6 +109,19 @@ public static class ServiceExtensions
 
 		services.AddScoped<IInvokeEngineProvider>(s =>
 			new WebInvokeEngineProvider(s, invokeEngineFactory.Engines)
+		);
+		return services;
+	}
+
+	public static IServiceCollection AddBlobStorages(this IServiceCollection services, Action<BlobStorageFactory> action)
+	{
+		var blobEngineFactory = new BlobStorageFactory();
+		action.Invoke(blobEngineFactory);
+		foreach (var r in blobEngineFactory.Engines)
+			services.AddSingleton(r.StorageType);
+
+		services.AddSingleton<IBlobStorageProvider>(s =>
+			new WebBlobStorageProvider(s, blobEngineFactory.Engines)
 		);
 		return services;
 	}

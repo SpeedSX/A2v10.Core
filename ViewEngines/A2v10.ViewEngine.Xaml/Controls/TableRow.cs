@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -19,7 +19,7 @@ public class TableRowCollection : List<TableRow>
 [ContentProperty("Cells")]
 public class TableRow : UIElement
 {
-	public TableCellCollection Cells { get; set; } = new TableCellCollection();
+	public TableCellCollection Cells { get; set; } = [];
 
 	public Object? Mark { get; set; }
 	public VerticalAlign VAlign { get; set; }

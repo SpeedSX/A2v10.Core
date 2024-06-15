@@ -1,25 +1,21 @@
-﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Alex Kukhtin. All rights reserved.
 
+
+using System.Text;
 
 using Microsoft.Extensions.DependencyInjection;
-using System.Text;
 
 namespace A2v10.Xaml;
 
 [AttachedProperties("Fill,Skip")]
-public class FullHeightPanel : Container
+public class FullHeightPanel(IServiceProvider serviceProvider) : Container
 {
-	private readonly IAttachedPropertyManager _attachedPropertyManager;
+	private readonly IAttachedPropertyManager _attachedPropertyManager = serviceProvider.GetRequiredService<IAttachedPropertyManager>();
 
-	public FullHeightPanel(IServiceProvider serviceProvider)
-	{
-		_attachedPropertyManager = serviceProvider.GetRequiredService<IAttachedPropertyManager>();
-	}
-
-	#region Attached Properties
+    #region Attached Properties
 
 
-	public Boolean? GetFill(Object obj)
+    public Boolean? GetFill(Object obj)
 	{
 		return _attachedPropertyManager.GetProperty<Boolean?>("FullHeightPanel.Fill", obj);
 	}
@@ -66,5 +62,11 @@ public class FullHeightPanel : Container
 		panel.RenderStart(context);
 		RenderChildren(context);
 		panel.RenderEnd(context);
+	}
+
+	protected override void OnEndInit()
+	{
+		base.OnEndInit();
+		EndInitAttached(_attachedPropertyManager);
 	}
 }

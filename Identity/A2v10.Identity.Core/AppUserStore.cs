@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 namespace A2v10.Web.Identity;
 
@@ -15,8 +15,9 @@ using A2v10.Data.Interfaces;
 using A2v10.Identity.Core.Helpers;
 
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 
-public sealed class AppUserStore<T> :
+public sealed class AppUserStore<T>(IDbContext dbContext, IOptions<AppUserStoreOptions<T>> options) :
 	IUserStore<AppUser<T>>,
 	IUserLoginStore<AppUser<T>>,
 	IUserEmailStore<AppUser<T>>,
@@ -25,21 +26,25 @@ public sealed class AppUserStore<T> :
 	IUserSecurityStampStore<AppUser<T>>,
 	IUserClaimStore<AppUser<T>>,
 	IUserRoleStore<AppUser<T>>,
-	IUserLockoutStore<AppUser<T>>
+	IUserLockoutStore<AppUser<T>>,
+	IUserTwoFactorStore<AppUser<T>>,
+	IUserAuthenticatorKeyStore<AppUser<T>>
+	//IUserTwoFactorTokenProvider<AppUser<T>>
 	where T : struct
 {
-	private readonly IDbContext _dbContext;
-	private readonly String? _dataSource;
-	private readonly String _dbSchema;
-	private readonly Boolean _multiTenant;
-	private readonly RolesMode _rolesMode;
+	private readonly IDbContext _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+	private readonly String? _dataSource = options.Value?.DataSource;
+	private readonly String _dbSchema = options.Value?.Schema ?? "a2security";
+	private readonly Boolean _multiTenant = options.Value?.MultiTenant ?? false;
+	private readonly RolesMode _rolesMode = options.Value?.UseRoles ?? RolesMode.None;
 
-	private readonly Func<AppUser<T>, IEnumerable<KeyValuePair<String, String?>>>? _addClaims;
+	private readonly Func<AppUser<T>, IEnumerable<KeyValuePair<String, String?>>>? _addClaims = options.Value?.Claims;
 
 	private static class ParamNames
 	{
 		public const String Id = nameof(Id);
-		public const String Provider = nameof(Provider);
+        public const String Tenant = nameof(Tenant);
+        public const String Provider = nameof(Provider);
 		public const String Token = nameof(Token);
 		public const String PasswordHash = nameof(PasswordHash);
 		public const String SecurityStamp = nameof(SecurityStamp);
@@ -55,20 +60,18 @@ public sealed class AppUserStore<T> :
 		public const String Roles = nameof(Roles);
 		public const String Branch = nameof(Branch);
         public const String ZipCode = nameof(ZipCode);
-        public const String AccessFailedCount = nameof(AccessFailedCount);
+		public const String ExternalId = nameof(ExternalId);
+		public const String AccessFailedCount = nameof(AccessFailedCount);
 		public const String LockoutEndDate = nameof(LockoutEndDate);
-	}
-	public AppUserStore(IDbContext dbContext, IOptions<AppUserStoreOptions<T>> options)
-	{
-		_dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-		_dataSource = options.Value?.DataSource;
-		_dbSchema = options.Value?.Schema ?? "a2security";
-		_addClaims = options.Value?.Claims;
-		_multiTenant = options.Value?.MultiTenant ?? false;
-		_rolesMode = options.Value?.UseRoles ?? RolesMode.None;
+        public const String Locale = nameof(Locale);
+		public const String LoginProvider = nameof(LoginProvider);
+        public const String ProviderKey = nameof(ProviderKey);
+		public const String TwoFactorEnabled = nameof(TwoFactorEnabled);
+		public const String AuthenticatorKey = nameof(AuthenticatorKey);
+
 	}
 
-	public async Task<IdentityResult> CreateAsync(AppUser<T> user, CancellationToken cancellationToken)
+    public async Task<IdentityResult> CreateAsync(AppUser<T> user, CancellationToken cancellationToken)
 	{
 		user.PasswordHash ??= user.PasswordHash2;
 		user.SecurityStamp ??= user.SecurityStamp2;
@@ -170,6 +173,15 @@ public sealed class AppUserStore<T> :
 			prm.Add(ParamNames.Branch, user.Branch);
         if (user.Flags.HasFlag(UpdateFlags.ZipCode))
             prm.Add(ParamNames.ZipCode, user.ZipCode);
+		if (user.Flags.HasFlag(UpdateFlags.ExternalId))
+			prm.Add(ParamNames.ExternalId, user.ExternalId);
+		if (user.Flags.HasFlag(UpdateFlags.Locale))
+            prm.Add(ParamNames.Locale, user.Locale);
+		if (user.Flags.HasFlag(UpdateFlags.TwoFactor))
+		{
+			prm.Add(ParamNames.TwoFactorEnabled, user.TwoFactorEnabled);
+			prm.Add(ParamNames.AuthenticatorKey, user.AuthenticatorKey);
+		}
 
         await _dbContext.ExecuteExpandoAsync(_dataSource, $"[{_dbSchema}].[User.UpdateParts]", prm);
 
@@ -289,7 +301,7 @@ public sealed class AppUserStore<T> :
 	#region IUserClaimStore
 	public Task<IList<Claim>> GetClaimsAsync(AppUser<T> user, CancellationToken cancellationToken)
 	{
-		List<Claim> list = new();
+		List<Claim> list = [];
 		if (_addClaims != null)
 		{
 			foreach (var (k, v) in _addClaims(user))
@@ -306,7 +318,7 @@ public sealed class AppUserStore<T> :
 
 	private static void AddDefaultClaims(AppUser<T> user, List<Claim> list)
 	{
-		list.Add(new Claim(WellKnownClaims.NameIdentifier, user.Id.ToString()!));
+		//????list.Add(new Claim(WellKnownClaims.NameIdentifier, user.Id.ToString()!));
 		list.Add(new Claim(WellKnownClaims.PersonName, user.PersonName ?? String.Empty));
 		if (!String.IsNullOrEmpty(user.FirstName))
 			list.Add(new Claim(WellKnownClaims.FirstName, user.FirstName));
@@ -330,8 +342,14 @@ public sealed class AppUserStore<T> :
 			list.Add(new Claim(WellKnownClaims.OrganizationKey, user.OrganizationKey));
 		if (user.IsPersistent)
 			list.Add(new Claim(WellKnownClaims.IsPersistent, "true"));
+		if (!String.IsNullOrEmpty(user.Roles))
+		{
+			list.Add(new Claim(WellKnownClaims.Roles, user.Roles));
+			if (user.Roles.Split(',').Any(x => x == WellKnownClaims.Admin))
+				list.Add(new Claim(WellKnownClaims.Admin, WellKnownClaims.Admin));
+		}
 
-		//if (user.IsAdmin) // TODO
+		//if (user.IsAdmin) // TODO ?? IsAdmin
 		//list.Add(new Claim(WellKnownClims.Admin, "Admin"));
 		/*
 		if (_host.IsMultiTenant)
@@ -382,8 +400,11 @@ public sealed class AppUserStore<T> :
 			case WellKnownClaims.LastName:
 				user.LastName = claim.Value;
 				break;
-		}
-	}
+            case WellKnownClaims.Roles:
+                user.Roles = claim.Value;
+				break;
+        }
+    }
 
 	public async Task AddClaimsAsync(AppUser<T> user, IEnumerable<Claim> claims, CancellationToken cancellationToken)
 	{
@@ -413,15 +434,22 @@ public sealed class AppUserStore<T> :
 	#endregion
 
 	#region IUserLoginStore
-	public Task AddLoginAsync(AppUser<T> user, UserLoginInfo login, CancellationToken cancellationToken)
+	public async Task AddLoginAsync(AppUser<T> user, UserLoginInfo login, CancellationToken cancellationToken)
 	{
-		// ParamName: UserId
-		throw new NotImplementedException();
+        var prm = new ExpandoObject()
+        {
+            { ParamNames.Id,  user.Id },
+			{ ParamNames.Tenant, user.Tenant },
+            { ParamNames.LoginProvider, login.LoginProvider },
+            { ParamNames.ProviderKey,  login.ProviderKey}
+        };
+        await _dbContext.ExecuteExpandoAsync(_dataSource, $"[{_dbSchema}].[User.AddExternalLogin]", prm);
 	}
 
 	[return: NotNull]
 #if NET6_0
-	public async Task<AppUser<T>> FindByLoginAsync(String loginProvider, String providerKey, CancellationToken cancellationToken)
+#pragma warning disable CS8603 // Possible null reference return.
+    public async Task<AppUser<T>> FindByLoginAsync(String loginProvider, String providerKey, CancellationToken cancellationToken)
 #elif NET7_0_OR_GREATER
 	public async Task<AppUser<T>?> FindByLoginAsync(String loginProvider, String providerKey, CancellationToken cancellationToken)
 #endif
@@ -432,27 +460,35 @@ public sealed class AppUserStore<T> :
 			{
 				{ "ApiKey", providerKey }
 			};
-			return await _dbContext.LoadAsync<AppUser<T>>(_dataSource, $"[{_dbSchema}].[FindApiUserByApiKey]", prms)
-				?? new AppUser<T>();
-		}
+            return await _dbContext.LoadAsync<AppUser<T>>(_dataSource, $"[{_dbSchema}].[FindApiUserByApiKey]", prms);
+        }
 		else if (loginProvider == "PhoneNumber")
 		{
 			var prms = new ExpandoObject()
 			{
 				{ "PhoneNumber", providerKey }
 			};
-			return await _dbContext.LoadAsync<AppUser<T>>(_dataSource, $"[{_dbSchema}].[FindUserByPhoneNumber]", prms)
-				?? new AppUser<T>();
+			return await _dbContext.LoadAsync<AppUser<T>>(_dataSource, $"[{_dbSchema}].[FindUserByPhoneNumber]", prms);
 
 		}
 		else if (loginProvider == "Email")
 		{
 			return await FindByEmailAsync(providerKey, cancellationToken);
 		}
-		throw new NotImplementedException(loginProvider);
-	}
-
-	public Task<IList<UserLoginInfo>> GetLoginsAsync(AppUser<T> user, CancellationToken cancellationToken)
+		else
+		{
+			var prms = new ExpandoObject()
+				{
+					{ ParamNames.LoginProvider, loginProvider },
+					{ ParamNames.ProviderKey, providerKey },
+				};
+			return await _dbContext.LoadAsync<AppUser<T>>(_dataSource, $"[{_dbSchema}].[FindUserByExternalLogin]", prms);
+		}
+    }
+#if NET6_0
+#pragma warning restore CS8603 // Possible null reference return.
+#endif
+    public Task<IList<UserLoginInfo>> GetLoginsAsync(AppUser<T> user, CancellationToken cancellationToken)
 	{
 		throw new NotImplementedException();
 	}
@@ -472,7 +508,7 @@ public sealed class AppUserStore<T> :
 
 	public Task<String?> GetPhoneNumberAsync(AppUser<T> user, CancellationToken cancellationToken)
 	{
-		return Task.FromResult<String?>(user.PhoneNumber ?? throw new InvalidOperationException("Phone number is null"));
+		return Task.FromResult<String?>(user.PhoneNumber);
 	}
 
 	public Task<Boolean> GetPhoneNumberConfirmedAsync(AppUser<T> user, CancellationToken cancellationToken)
@@ -509,6 +545,8 @@ public sealed class AppUserStore<T> :
 			{ ParamNames.Token, token },
 			{ ParamNames.Expires, expires }
 		};
+		if (_multiTenant && user.Tenant != null)
+			exp.Add(ParamNames.Tenant, user.Tenant);
 		if (!String.IsNullOrEmpty(tokenToRemove))
 			exp.Add("Remove", tokenToRemove);
 		return _dbContext.ExecuteExpandoAsync(_dataSource, $"[{_dbSchema}].AddToken", exp);
@@ -522,6 +560,8 @@ public sealed class AppUserStore<T> :
 			{ ParamNames.Provider, provider },
 			{ ParamNames.Token, token }
 		};
+		if (_multiTenant && user.Tenant != null)
+			exp.Add(ParamNames.Tenant, user.Tenant);
 		var res = await _dbContext.LoadAsync<JwtToken<T>>(_dataSource, $"[{_dbSchema}].GetToken", exp);
 		return res?.Token;
 	}
@@ -534,6 +574,8 @@ public sealed class AppUserStore<T> :
 			{ ParamNames.Provider, provider },
 			{ ParamNames.Token, token }
 		};
+		if (_multiTenant && user.Tenant != null)
+			exp.Add(ParamNames.Tenant, user.Tenant);
 		return _dbContext.ExecuteExpandoAsync(_dataSource, $"[{_dbSchema}].RemoveToken", exp);
 	}
 	#endregion
@@ -551,7 +593,7 @@ public sealed class AppUserStore<T> :
 
 	public Task<IList<String>> GetRolesAsync(AppUser<T> user, CancellationToken cancellationToken)
 	{
-		List<String> list = new();
+		List<String> list = [];
 		if (_rolesMode == RolesMode.Claims && user.Roles != null)
 			list.AddRange(user.Roles.Split(",")); 
 		else if (_rolesMode == RolesMode.Database)
@@ -627,6 +669,43 @@ public sealed class AppUserStore<T> :
 	{
 		user.LockoutEnabled = enabled;
 		return Task.CompletedTask;
+	}
+
+	#endregion
+
+	#region IUserTwoFactorStore
+	public Task SetTwoFactorEnabledAsync(AppUser<T> user, Boolean enabled, CancellationToken cancellationToken)
+	{
+		user.TwoFactorEnabled = enabled;
+		var exp = new ExpandoObject()
+		{
+			{ ParamNames.Id, user.Id },
+			{ ParamNames.TwoFactorEnabled, enabled }
+		};
+		return _dbContext.ExecuteExpandoAsync(_dataSource, $"[{_dbSchema}].[User.SetTwoFactorEnabled]", exp);
+	}
+
+	public Task<Boolean> GetTwoFactorEnabledAsync(AppUser<T> user, CancellationToken cancellationToken)
+	{
+		return Task.FromResult<Boolean>(user.TwoFactorEnabled);
+	}
+	#endregion
+
+	#region IUserAuthenticatorKeyStore
+	public Task SetAuthenticatorKeyAsync(AppUser<T> user, String key, CancellationToken cancellationToken)
+	{
+		user.AuthenticatorKey = key;
+		var exp = new ExpandoObject()
+		{
+			{ ParamNames.Id, user.Id },
+			{ ParamNames.AuthenticatorKey, key }
+		};
+		return _dbContext.ExecuteExpandoAsync(_dataSource, $"[{_dbSchema}].[User.SetAuthenticatorKey]", exp);
+	}
+
+	public Task<String?> GetAuthenticatorKeyAsync(AppUser<T> user, CancellationToken cancellationToken)
+	{
+		return Task.FromResult<String?>(user.AuthenticatorKey);
 	}
 	#endregion
 }

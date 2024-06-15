@@ -1,11 +1,14 @@
-﻿// Copyright © 2022 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2022-2024 Oleksandr Kukhtin. All rights reserved.
+
+using System;
 
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 
 using A2v10.Xaml.Report;
-using System;
+using A2v10.Xaml.Report.Spreadsheet;
+using A2v10.ReportEngine.Script;
 
 namespace A2v10.ReportEngine.Pdf;
 
@@ -53,7 +56,7 @@ internal class PageComposer
 			if (rs != null && rs.FontSize != null)
 				ts = ts.FontSize(rs.FontSize.Value);
 			else
-				ts = ts.FontSize(10F);
+				ts = ts.FontSize(9.75F);
 			return ts;
 		});
 
@@ -81,13 +84,24 @@ internal class PageComposer
 
 	void ComposeContent(IContainer container)
 	{
-		foreach (var c in _page.Columns)
+		if (_page is Spreadsheet spreadsheet)
 		{
 			container.Column(column =>
 			{
-				var cc = new ColumnComposer(c, _context);
+				var cc = new WorkbookComposer(spreadsheet.Workbook, _context);
 				cc.Compose(column);
 			});
+		}
+		else if (_page.Columns.Count > 0)
+		{
+			foreach (var c in _page.Columns)
+			{
+				container.Column(column =>
+				{
+					var cc = new ColumnComposer(c, _context);
+					cc.Compose(column);
+				});
+			}
 		}
 	}
 

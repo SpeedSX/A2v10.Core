@@ -7,8 +7,8 @@ namespace A2v10.Scheduling;
 
 public class AddSchedulerHandlerFactory
 {
-    private readonly Dictionary<String, Type> _commands = new();
-    private readonly Dictionary<String, Type> _handlers = new();
+    private readonly Dictionary<String, Type> _commands = [];
+    private readonly Dictionary<String, Type> _handlers = [];
 
     public IDictionary<String, Type> Commands => _commands;
     public AddSchedulerHandlerFactory RegisterCommand<T>(String name)
@@ -20,6 +20,12 @@ public class AddSchedulerHandlerFactory
     public AddSchedulerHandlerFactory RegisterJobHandler<T>(String name)
     {
         _handlers.Add(name, typeof(T));
+        return this;
+    }
+    public AddSchedulerHandlerFactory RegisterJobHandler<T>()
+    {
+        _handlers.Add(typeof(T).FullName ?? throw new InvalidOperationException("The handler doesn't have FullName"), 
+            typeof(T));
         return this;
     }
 

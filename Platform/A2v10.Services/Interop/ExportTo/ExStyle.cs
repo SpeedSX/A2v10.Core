@@ -1,6 +1,4 @@
-﻿// Copyright © 2015-2021 Alex Kukhtin. All rights reserved.
-
-// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 namespace A2v10.Services.Interop;
 
@@ -31,13 +29,14 @@ public struct Style
 	public Boolean Underline;
 
 	public readonly Boolean HasBorder => RowKind == RowKind.Body || RowRole == RowRole.Header || RowRole == RowRole.Footer || RowRole == RowRole.Total;
-	public readonly Boolean HasAlignment => Align != HorizontalAlign.NotSet || DataType == DataType.DateTime || DataType == DataType.Date;
+	public readonly Boolean IsDateOrTime => DataType == DataType.Date || DataType == DataType.DateTime || DataType == DataType.Time;
+	public readonly Boolean IsBoolean => DataType == DataType.Boolean;
 }
 
 public class StylesDictionary
 {
-	private readonly Dictionary<Style, UInt32> _hash = new();
-	public List<Style> List { get; } = new List<Style>();
+	private readonly Dictionary<Style, UInt32> _hash = [];
+	public List<Style> List { get; } = [];
 
 	public StylesDictionary()
 	{

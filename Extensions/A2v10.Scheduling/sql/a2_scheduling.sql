@@ -1,8 +1,8 @@
 ﻿/*
-Copyright © 2008-2023 Oleksandr Kukhtin
+Copyright © 2008-2024 Oleksandr Kukhtin
 
-Last updated : 21 aug 2023
-module version : 8135
+Last updated : 24 may 2024
+module version : 8283
 */
 
 /*
@@ -16,12 +16,14 @@ print @json;
 */
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.SCHEMATA where SCHEMA_NAME=N'a2sch')
-	exec sp_executesql N'create schema a2sch';
+	exec sp_executesql N'create schema a2sch authorization dbo';
+go
+------------------------------------------------
+alter authorization on schema::a2sch to dbo;
 go
 ------------------------------------------------
 grant execute on schema ::a2sch to public;
 go
-
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.SEQUENCES where SEQUENCE_SCHEMA=N'a2sch' and SEQUENCE_NAME=N'SQ_Commands')
 	create sequence a2sch.SQ_Commands as bigint start with 100 increment by 1;
@@ -44,7 +46,6 @@ create table a2sch.Commands
 	Error nvarchar(1024) sparse null 
 );
 go
-
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2sch' and TABLE_NAME=N'Exceptions')
 create table a2sch.Exceptions
@@ -55,6 +56,10 @@ create table a2sch.Exceptions
 	[UtcDateCreated] datetime not null
 		constraint DF_Exceptions_UtcDateCreated default(getutcdate())
 );
+go
+------------------------------------------------
+if not exists (select * from sys.indexes where object_id = object_id(N'a2sch.Commands') and name = N'IX_Commands_Complete_Lock_UtcRunAt')
+	create nonclustered index IX_Commands_Complete_Lock_UtcRunAt on a2sch.[Commands] ([Complete], [Lock], [UtcRunAt]);
 go
 ------------------------------------------------
 create or alter procedure a2sch.[Command.List]

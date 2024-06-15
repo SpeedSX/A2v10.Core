@@ -1,4 +1,4 @@
-﻿// Copyright © 2022-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2022-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Dynamic;
@@ -6,22 +6,15 @@ using System.Dynamic;
 using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 
+using A2v10.ReportEngine.Script;
+
 namespace A2v10.ReportEngine.Pdf;
 
 using Image = A2v10.Xaml.Report.Image;
 
-internal class ImageComposer : FlowElementComposer
+internal class ImageComposer(Image _image, RenderContext _context) : FlowElementComposer
 {
-	private readonly Image _image;
-	private readonly RenderContext _context;
-
-	public ImageComposer(Image image, RenderContext context)
-	{
-		_image = image;
-		_context = context;
-	}
-
-	internal override void Compose(IContainer container, Object? value = null)
+    internal override void Compose(IContainer container, Object? value = null)
 	{
 		if (!_context.IsVisible(_image))
 			return;

@@ -1,9 +1,10 @@
-﻿// Copyright © 2015-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Text;
+using System.Net.Http.Headers;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
@@ -11,21 +12,16 @@ using Microsoft.AspNetCore.Http;
 
 using A2v10.Data.Interfaces;
 using A2v10.Infrastructure;
+using System.Dynamic;
 
 namespace A2v10.Platform.Web.Controllers;
 
-public class PageActionResult : IActionResult
+public class PageActionResult(IRenderResult render, String? script) : IActionResult
 {
-	private readonly IRenderResult _render;
-	private readonly String? _script;
+	private readonly IRenderResult _render = render;
+	private readonly String? _script = script;
 
-	public PageActionResult(IRenderResult render, String? script)
-	{
-		_render = render;
-		_script = script;
-	}
-
-	public async Task ExecuteResultAsync(ActionContext context)
+    public async Task ExecuteResultAsync(ActionContext context)
 	{
 		var resp = context.HttpContext.Response;
 		resp.ContentType = _render.ContentType;
@@ -38,26 +34,12 @@ public class PageActionResult : IActionResult
 [ExecutingFilter]
 [Authorize]
 [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-public class PageController : BaseController
+public class PageController(IApplicationHost _host, ILocalizer _localizer, ICurrentUser _currentUser, 
+	IProfiler _profiler, IDataService _dataService,
+	IViewEngineProvider _viewEngineProvider, IAppDataProvider _appDataProvider, 
+	IAppVersion _appVersion, IDataScripter _scripter) 
+	: BaseController(_host, _localizer, _currentUser, _profiler)
 {
-	private readonly IDataService _dataService;
-	private readonly IDataScripter _scripter;
-	private readonly IAppCodeProvider _codeProvider;
-	private readonly IViewEngineProvider _viewEngineProvider;
-	private readonly IAppDataProvider _appDataProvider;
-
-	public PageController(IApplicationHost host, IAppCodeProvider codeProvider,
-		ILocalizer localizer, ICurrentUser currentUser, IProfiler profiler, IDataService dataService, 
-		IViewEngineProvider viewEngineProvider, IAppDataProvider appDataProvider)
-		: base(host, localizer, currentUser, profiler)
-	{
-		_dataService = dataService;
-		_codeProvider = codeProvider;
-		_scripter = new VueDataScripter(host, codeProvider, _localizer, currentUser);
-		_viewEngineProvider = viewEngineProvider;
-		_appDataProvider = appDataProvider;
-	}
-
 	[Route("_page/{*pathInfo}")]
 	public async Task<IActionResult> Page(String pathInfo)
 	{
@@ -67,7 +49,24 @@ public class PageController : BaseController
 		return await Render(pathInfo + Request.QueryString, UrlKind.Page);
 	}
 
-	[Route("_dialog/{*pathInfo}")]
+    [Route("_export/{*pathInfo}")]
+    public async Task<IActionResult> Export(String pathInfo)
+    {
+        // {pagePath}/action/id
+        var res = await _dataService.ExportAsync(pathInfo, SetSqlQueryParams);
+
+		var result = new WebBinaryActionResult(res.Body, res.ContentType);
+		Response.ContentType = res.ContentType;
+
+		var cdh = new ContentDispositionHeaderValue("attachment")
+		{
+			FileNameStar = Localize(res.FileName)
+        };
+        Response.Headers.Append("Content-Disposition", cdh.ToString());
+        return result;
+    }
+
+    [Route("_dialog/{*pathInfo}")]
 	public async Task<IActionResult> Dialog(String pathInfo)
 	{
 		// {pagePath}/dialog/id
@@ -101,14 +100,51 @@ public class PageController : BaseController
 
 	async Task<IActionResult> Render(IDataLoadResult modelAndView, Boolean secondPhase = false)
 	{
+		if (modelAndView.ActionResult != null)
+			return Content(modelAndView.ActionResult, MimeTypes.Text.HtmlUtf8);
+
 		Response.ContentType = MimeTypes.Text.HtmlUtf8;
+		Response.Headers.Append("App-Version", _appVersion.AppVersion);
 
 		IDataModel? model = modelAndView.Model;
-		var rw = modelAndView.View;
+		var rw = modelAndView.View ?? 
+			throw new InvalidOperationException("IModelView is null");
 
 		String rootId = $"el{Guid.NewGuid()}";
 
 		//var typeChecker = _host.CheckTypes(rw.Path, rw.checkTypes, model);
+
+		var viewName = rw.GetView(_host.Mobile);
+		var templateName = rw.Template;
+		String? viewText = null;
+		String? templateText = null;
+
+		if (viewName == "@Model.View" || templateName == "@Model.Template")
+		{
+			var modelModel = model?.Eval<ExpandoObject>("Model")
+				?? throw new InvalidOperationException("Model element not found");
+			Boolean removeView = false;
+			Boolean removeTemplate = false;
+			if (viewName == "@Model.View") {
+				viewText = modelModel.Get<String>("View") ??
+					throw new InvalidOperationException("Model.View not found");
+				modelModel.RemoveKeys("View");
+				removeView = true;
+			}
+			if (templateName == "@Model.Template")
+			{
+				templateText = modelModel.Get<String>("Template") ??
+					throw new InvalidOperationException("Model.Template not found");
+				modelModel.RemoveKeys("Template");
+				removeTemplate = true;
+			}
+			if (removeView && removeTemplate)
+			{
+				model.Metadata.Remove("TModel");
+				model.Metadata["TRoot"].Fields.Remove("Model");
+				model.Root.RemoveKeys("Model");
+			}
+		}
 
 		var msi = new ModelScriptInfo()
 		{
@@ -118,32 +154,30 @@ public class PageController : BaseController
 			IsIndex = rw.IsIndex,
 			IsPlain = rw.IsPlain,
 			IsSkipDataStack = rw.IsSkipDataStack,
-			Template = rw.Template,
-			Path = rw.Path,
+			Template = templateText ?? rw.Template,
+			Path = templateText != null ? "@Model.Template" : rw.Path,
 			BaseUrl = rw.BaseUrl
 		};
 
 		var si = await _scripter.GetModelScript(msi);
 
-		var viewName = rw.GetView(_host.Mobile);
 		var viewEngine = _viewEngineProvider.FindViewEngine(rw.Path, viewName);
 
 		// render XAML
 		var ri = new RenderInfo()
 		{
 			RootId = rootId,
-			FileName = viewEngine.FileName,
+			FileName = (viewText == null) ? viewEngine.FileName : null,
 			FileTitle = rw.GetView(_host.Mobile),
 			Path = rw.Path,
 			DataModel = model,
+			Text = viewText,
 			//TypeChecker = typeChecker,
 			CurrentLocale = null,
 			IsDebugConfiguration = _host.IsDebugConfiguration,
 			SecondPhase = secondPhase,
 		};
-
 		var result = await viewEngine.Engine.RenderAsync(ri);
-
 		await ProcessDbEvents(rw);
 		return new PageActionResult(result, si.Script);
 	}
@@ -153,7 +187,7 @@ public class PageController : BaseController
 		String exceptionInfo = $"Invald application url: '{pathInfo}'";
 		if (pathInfo == null)
 			throw new InvalidReqestExecption(exceptionInfo);
-		var info = pathInfo.Split(new Char[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar });
+		var info = pathInfo.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar]);
 		if (info.Length < 2)
 			throw new InvalidReqestExecption(exceptionInfo);
 		var kind = info[1].ToLowerInvariant();
@@ -164,7 +198,7 @@ public class PageController : BaseController
 			case "changepassword":
 				if (urlKind != UrlKind.Dialog)
 					throw new InvalidReqestExecption(exceptionInfo);
-				return View("ChangePassword");
+				return View("ChangePassword", new ChangePasswordViewModel { UserName = _currentUser.Identity.Name});
 			default:
 				if (urlKind != UrlKind.Page)
 					throw new InvalidReqestExecption(exceptionInfo);

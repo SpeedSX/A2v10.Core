@@ -1,6 +1,7 @@
 ﻿// Copyright © 2022 Oleksandr Kukhtin. All rights reserved.
 
 using System;
+using System.Text.Json.Serialization;
 
 namespace A2v10.Xaml.Report;
 
@@ -16,7 +17,7 @@ public class XamlElement : ISupportBinding
 
 	public Single? FontSize { get; init; }
 
-	public Thickness? Margin { get; init ;}
+	public Thickness? Margin { get; set ;}
 	public Thickness? Padding { get; init; }
 	public Thickness? Border { get; init; }
 	public String? Color { get; init; }
@@ -27,6 +28,7 @@ public class XamlElement : ISupportBinding
 	BindImpl? _bindImpl;
 
 	#region ISupportBinding
+	[JsonIgnore]
 	public BindImpl BindImpl
 	{
 		get

@@ -20,15 +20,11 @@ public record DeleteUserParams
     public Int64 Id { get; init; }
 }
 
-public class DeleteApiUserHandler : IClrInvokeTarget
+public class DeleteApiUserHandler(IServiceProvider serviceProvider) : IClrInvokeTarget
 {
-    private readonly AppUserStoreOptions<Int64> _userStoreOptions;
-    private readonly IDbContext _dbContext;
-    public DeleteApiUserHandler(IServiceProvider serviceProvider)
-    {
-        _userStoreOptions = serviceProvider.GetRequiredService<IOptions<AppUserStoreOptions<Int64>>>().Value;
-        _dbContext = serviceProvider.GetRequiredService<IDbContext>();
-    }
+    private readonly AppUserStoreOptions<Int64> _userStoreOptions = serviceProvider.GetRequiredService<IOptions<AppUserStoreOptions<Int64>>>().Value;
+    private readonly IDbContext _dbContext = serviceProvider.GetRequiredService<IDbContext>();
+
     Boolean IsMultiTenant => _userStoreOptions.MultiTenant ?? false;
 
     public async Task<Object> InvokeAsync(ExpandoObject args)
@@ -45,11 +41,12 @@ public class DeleteApiUserHandler : IClrInvokeTarget
             Id = Id
         };
 
-        var deletedUser = await _dbContext.ExecuteAndLoadAsync<DeleteUserParams, AppUser<Int64>>(_userStoreOptions.DataSource, "a2security.[User.DeleteApiUser]", deletePrms)
+        var deletedUser = await _dbContext.ExecuteAndLoadAsync<DeleteUserParams, AppUser<Int64>>(
+            _userStoreOptions.DataSource, $"[{_userStoreOptions.SecuritySchema}].[User.DeleteApiUser]", deletePrms)
             ?? throw new InvalidOperationException("Error deleting API user");
 
         if (IsMultiTenant)
-            await _dbContext.ExecuteAsync(deletedUser.Segment, "a2security.[User.Tenant.DeleteApiUser]", deletedUser);
+            await _dbContext.ExecuteAsync(deletedUser.Segment, $"[{_userStoreOptions.SecuritySchema}].[User.Tenant.DeleteApiUser]", deletedUser);
 
         return new ExpandoObject()
         {

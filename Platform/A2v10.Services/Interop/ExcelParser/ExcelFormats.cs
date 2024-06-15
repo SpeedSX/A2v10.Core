@@ -1,4 +1,6 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
+
+using System.Collections.ObjectModel;
 
 using DocumentFormat.OpenXml;
 
@@ -7,7 +9,7 @@ namespace A2v10.Services.Interop;
 internal static class ExcelFormats
 {
 	//// https://msdn.microsoft.com/en-GB/library/documentformat.openxml.spreadsheet.numberingformat(v=office.14).aspx
-	private static readonly Dictionary<UInt32, String> DateFormatDictionary = new()
+	private static readonly ReadOnlyDictionary<UInt32, String> DateFormatDictionary = new(new Dictionary<UInt32, String>()
 	{
 		[14] = "dd/MM/yyyy",
 		[15] = "d-MMM-yy",
@@ -52,9 +54,9 @@ internal static class ExcelFormats
 		[185] = "MMM-dd",
 		[186] = "M/d/yyyy",
 		[187] = "d-MMM-yyyy"
-	};
+	});
 
-	private static readonly Dictionary<UInt32, String> NumberFormatDictionary = new()
+	private static readonly ReadOnlyDictionary<UInt32, String> NumberFormatDictionary = new(new Dictionary<UInt32, String>()
 	{
 		[0] = "General",
 		[1] = "0",
@@ -67,7 +69,7 @@ internal static class ExcelFormats
 		[39] = "#,##0.00;(#,##0.00)",
 		[40] = "#,##0.00;[Red](#,##0.00)",
 		[48] = "##0.0E+0"
-	};
+	});
 
 	public static String? GetDateTimeFormat(UInt32Value? numberFormatId)
 	{

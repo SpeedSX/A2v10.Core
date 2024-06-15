@@ -1,10 +1,12 @@
-﻿// Copyright © 2022-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2022-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 
-using A2v10.Xaml.Report;
 using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
+
+using A2v10.Xaml.Report;
+using A2v10.ReportEngine.Script;
 
 namespace A2v10.ReportEngine.Pdf;
 
@@ -20,6 +22,7 @@ internal static class Extensions
 			Table table => new TableComposer(table, context),
 			Text text => new TextComposer(text, context),
 			Image image => new ImageComposer(image, context),
+			QrCode qrCode => new QrCodeComposer(qrCode, context),
 			Line line => new LineComposer(line),
 			List list => new ListComposer(list, context),
 			Inlined inlined => new InlinedComposer(inlined, context),

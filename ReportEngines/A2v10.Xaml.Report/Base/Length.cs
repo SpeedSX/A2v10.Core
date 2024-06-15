@@ -13,7 +13,7 @@ public record Length
 	public Single Value { get; init; } = 1;
 	public String Unit { get; init; } = "fr";
 
-	static readonly String[] ValidLength = { "mm", "cm", "pt", "in", "fr" };
+	static readonly String[] ValidLength = ["mm", "cm", "pt", "in", "fr"];
 
 	public Boolean IsEmpty()
 	{
@@ -28,16 +28,21 @@ public record Length
 	public static Length FromString(String strVal)
 	{
 		strVal = strVal.Trim().ToLowerInvariant().Replace("*", "fr");
-		if (strVal.Length < 3)
-			strVal += "pt";
-		if (strVal.Length >= 3)
-		{
-			var ext = strVal.Substring(strVal.Length - 2, 2);
-			var val = strVal[..^2];
-			if (ValidLength.Any(x => x == ext) && Single.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out Single snglVal))
-				return new Length() { Value = snglVal, Unit = ext };
-		}
+		if (Single.TryParse(strVal, NumberStyles.Any, CultureInfo.InvariantCulture, out Single tryResult))
+			return new Length() { Value = tryResult, Unit = "pt" };
+		var ext = strVal.Substring(strVal.Length - 2, 2);
+		var val = strVal[..^2];
+		if (ValidLength.Any(x => x == ext) && Single.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out Single snglVal))
+			return new Length() { Value = snglVal, Unit = ext };
 		throw new XamlException($"Invalid length value '{strVal}'");
+	}
+
+	public override string ToString()
+	{
+		if (Unit == "pt")
+			return Value.ToString(CultureInfo.InvariantCulture);
+		FormattableString fs = $"{Value}{Unit}";
+		return fs.ToString(CultureInfo.InvariantCulture);
 	}
 }
 

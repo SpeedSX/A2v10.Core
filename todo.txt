@@ -1,4 +1,9 @@
-﻿APP COMPILER & MODULES
+﻿Authenticator
+1. Load/Save User Key
+2. Dialog format and Localization
+3. Handler for Generate Key
+
+APP COMPILER & MODULES
 ======================
 3. PdfReportEngine - Images
 
@@ -32,22 +37,15 @@ LICENSING
 
 8. Site mode sample
 
-13. SetUserPassword
 14. Доделать AccountController
 
 22. DataService.Load Indirect
 23. DataService.Load Merge
 
-24. UserStore. UpdateUser
-
-31. DataController. ExportTo (Export to Excel)
 36. AttachmentController
-37. ApiV2 Authorization
-40. LoadImage from Azure
 42. DataController.Invoke XML
 46. ExportController
 47. AppLinks
-49. Убрать ViewBag.___
 50. globalPeriod вместо custom в config.
 51. HtmlRenderer
 52. Admin - CheckPermissions for view/scriptAdmin/etc
@@ -61,7 +59,7 @@ LICENSING
 
 TABBED LAYOUT
 =============
-4. Footer: About, Footer.AppLinks
+4. Footer: Footer.AppLinks
 25. Header.UserMenu. ChangePassword
 27. Header -> Search in interface
 30. LeftMenu - поиск
@@ -83,9 +81,7 @@ TABBED LAYOUT
 74. Левая панель - текст в меню nowrap, ellipsis
 78. SimpleSecurity: развязать User/Tenant
 79. Красивость. Если Search заполнен - подсвечивать его каким-то цветом.
-82. NovaEra2023. Что-то с сохранением вариантов после изменения шаблона.
 83. NovaEra2023. Динамическая оборотка - придумать что-то со сворачиванием сальдо.
-84. NovaEra2023: OperationKinds и устанвка Bind, BindFactor (картинка для Order)
 85. InitLayout (Login/Registration/etc) - нету footer
 86. 
 
@@ -107,5 +103,3 @@ Dynamic Reports
 
 24. 
 
--- DEPLOY
-WebAssets: vue.js, tabmain.js

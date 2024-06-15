@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2022 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Collections.Generic;
@@ -9,14 +9,13 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 
-
 namespace A2v10.Infrastructure;
 
-public static class DynamicHelpers
+public static partial class DynamicHelpers
 {
 	public static T? Get<T>(this ExpandoObject obj, String name)
 	{
-		if (obj is not IDictionary<String, Object> d)
+		if (obj is not IDictionary<String, Object?> d)
 			return default;
 		if (d.TryGetValue(name, out Object? result))
 		{
@@ -66,7 +65,7 @@ public static class DynamicHelpers
 		return null;
 	}
 
-	public static ExpandoObject Add(this ExpandoObject obj, String name, Object value)
+	public static ExpandoObject Add(this ExpandoObject obj, String name, Object? value)
 	{
 		if (obj is not IDictionary<String, Object?> d)
 			return obj;
@@ -76,7 +75,7 @@ public static class DynamicHelpers
 
 	public static void SetIfNotExists(this ExpandoObject obj, String name, Object value)
 	{
-		if (obj is not IDictionary<String, Object> d)
+		if (obj is not IDictionary<String, Object?> d)
 			return;
 		if (!d.ContainsKey(name))
 			d.Add(name, value);
@@ -122,8 +121,8 @@ public static class DynamicHelpers
 			return;
 		if (other == null)
 			return;
-		IDictionary<String, Object> thatD = that as IDictionary<String, Object>;
-		foreach (var k in other as IDictionary<String, Object>)
+		IDictionary<String, Object?> thatD = that;
+		foreach (var k in other as IDictionary<String, Object?>)
 		{
 			if (!thatD.ContainsKey(k.Key))
 				thatD.Add(k.Key, k.Value);
@@ -138,8 +137,8 @@ public static class DynamicHelpers
 			return;
 		if (other == null)
 			return;
-		IDictionary<String, Object> thatD = that as IDictionary<String, Object>;
-		foreach (var (k, v) in other as IDictionary<String, Object>)
+		IDictionary<String, Object?> thatD = that;
+		foreach (var (k, v) in other as IDictionary<String, Object?>)
 		{
 			if (exclude != null && exclude.Any(x => x.Equals(k, StringComparison.OrdinalIgnoreCase)))
 				continue;
@@ -154,8 +153,8 @@ public static class DynamicHelpers
 			return;
 		if (other == null)
 			return;
-		IDictionary<String, Object> thatD = that as IDictionary<String, Object>;
-		foreach (var k in other as IDictionary<String, Object>)
+		IDictionary<String, Object?> thatD = that;
+		foreach (var k in other as IDictionary<String, Object?>)
 		{
 			if (thatD.ContainsKey(k.Key))
 				thatD[k.Key] = k.Value;
@@ -170,8 +169,8 @@ public static class DynamicHelpers
 			return;
 		if (other == null)
 			return;
-		IDictionary<String, Object> thatD = that as IDictionary<String, Object>;
-		foreach (var k in other as IDictionary<String, Object>)
+		IDictionary<String, Object?> thatD = that;
+		foreach (var k in other as IDictionary<String, Object?>)
 		{
 			if (!thatD.ContainsKey(k.Key))
 				thatD.Add(k.Key, k.Value);
@@ -209,10 +208,18 @@ public static class DynamicHelpers
 		return obj;
 	}
 
+	const String EVAL_PATTERN = @"(\w+)\[(\d+)\]{1}";
+#if NET7_0_OR_GREATER
+	[GeneratedRegex(EVAL_PATTERN, RegexOptions.None, "en-US")]
+	private static partial Regex EvalRegex();
+#else
+	private static Regex EVAL_REGEX => new(EVAL_PATTERN, RegexOptions.Compiled);
+	private static Regex EvalRegex() => EVAL_REGEX;
+#endif
+
 	public static Object? EvalExpression(this ExpandoObject root, String expression, Boolean throwIfError = false)
 	{
 		Object currentContext = root;
-		var arrRegEx = new Regex(@"(\w+)\[(\d+)\]{1}");
 		foreach (var exp in expression.Split('.'))
 		{
 			if (currentContext == null)
@@ -221,11 +228,11 @@ public static class DynamicHelpers
 			var d = currentContext as IDictionary<String, Object?>;
 			if (prop.Contains('['))
 			{
-				var match = arrRegEx.Match(prop);
+				var match = EvalRegex().Match(prop);
 				prop = match.Groups[1].Value;
-				if ((d != null) && d.ContainsKey(prop))
+				if ((d != null) && d.TryGetValue(prop, out Object? value))
 				{
-					if (d[prop] is IList<ExpandoObject> list)
+					if (value is IList<ExpandoObject> list)
 						currentContext = list[Int32.Parse(match.Groups[2].Value)];
 					else
 						throw new ArgumentException($"Error in expression '{expression}'. Property '{prop}' is not a list");
@@ -239,8 +246,8 @@ public static class DynamicHelpers
 			}
 			else
 			{
-				if ((d != null) && d.ContainsKey(prop))
-					currentContext = d[prop]!;
+				if ((d != null) && d.TryGetValue(prop, out Object? value))
+					currentContext = value!;
 				else
 				{
 					if (throwIfError)
@@ -261,7 +268,7 @@ public static class DynamicHelpers
 	public static ExpandoObject Clone(this ExpandoObject elem, String[]? exclude = null)
 	{
 		var eo = new ExpandoObject();
-		foreach (var v in elem as IDictionary<String, Object>)
+		foreach (var v in elem as IDictionary<String, Object?>)
 		{
 			if (exclude != null && exclude.Contains(v.Key))
 				continue;
@@ -272,7 +279,7 @@ public static class DynamicHelpers
 
 	public static Boolean IsEmpty(this ExpandoObject that)
 	{
-		return that == null || that is not IDictionary<String, Object> dict || dict.Count == 0;
+		return that == null || that is not IDictionary<String, Object?> dict || dict.Count == 0;
 	}
 
 	public static T? Eval<T>(this ExpandoObject root, String? expression, T? fallback = default, Boolean throwIfError = false)
@@ -287,12 +294,22 @@ public static class DynamicHelpers
 		return fallback;
 	}
 
+
+	const String RESOLVE_PATTERN = "\\{\\{(.+?)\\}\\}";
+#if NET7_0_OR_GREATER
+	[GeneratedRegex(RESOLVE_PATTERN, RegexOptions.None, "en-US")]
+	private static partial Regex ResolveRegex();
+#else
+	private static Regex RESOLVE_REGEX => new(RESOLVE_PATTERN, RegexOptions.Compiled);
+	private static Regex ResolveRegex() => RESOLVE_REGEX;
+#endif
+
 	public static String? Resolve(this ExpandoObject This, String? source)
 	{
 		if (source == null)
 			return null;
-		var r = new Regex("\\{\\{(.+?)\\}\\}");
-		var ms = r.Matches(source);
+		
+		var ms = ResolveRegex().Matches(source);
 		if (ms.Count == 0)
 			return source;
 		var sb = new StringBuilder(source);
@@ -305,12 +322,19 @@ public static class DynamicHelpers
 		return sb.ToString();
 	}
 
+	public static void ReplaceValue(this ExpandoObject This, String key, Func<Object?, Object?> replacement)
+	{
+		var d = This as IDictionary<String, Object?>;
+		if (d.TryGetValue(key, out var value))
+			d[key] = replacement(value);
+	}
 
-	public static Dictionary<String, Object>? Object2Dictionary(Object? obj)
+
+	public static Dictionary<String, Object?>? Object2Dictionary(Object? obj)
 	{
 		if (obj == null)
 			return null;
-		var d = new Dictionary<String, Object>();
+		var d = new Dictionary<String, Object?>();
 		foreach (var pi in obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
 		{
 			var val = pi.GetValue(obj);
@@ -349,8 +373,8 @@ public static class DynamicHelpers
 		return IsNullableType(type) ? type.GetGenericArguments()[0] : type;
 	}
 
-	public static IEnumerable<KeyValuePair<String, Object>> Enumerate(this ExpandoObject obj)
+	public static IEnumerable<KeyValuePair<String, Object?>> Enumerate(this ExpandoObject obj)
 	{
-		return obj as IDictionary<String, Object>;
+		return obj;
 	}
 }

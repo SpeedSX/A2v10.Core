@@ -1,4 +1,4 @@
-﻿// Copyright © 2020-2022 Alex Kukhtin. All rights reserved.
+﻿// Copyright © 2020-2023 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Collections.Generic;
@@ -9,7 +9,7 @@ namespace A2v10.Web.Identity.ApiKey;
 
 public class ApiKeyAuthenticationOptions : AuthenticationSchemeOptions
 {
-	public const String DefaultScheme = "API Key";
+	public const String DefaultScheme = ApiKeyDefaults.AuthenticationScheme;
 	public const String Scheme = DefaultScheme;
 	public const String AuthenticationType = DefaultScheme;
 	public const String HeaderName = "X-Api-Key";
@@ -19,8 +19,8 @@ public class ApiKeyAuthenticationOptions : AuthenticationSchemeOptions
 		{
 			Type = SecuritySchemeType.ApiKey,
 			In = ParameterLocation.Header,
-			Name = ApiKeyAuthenticationOptions.HeaderName,
-			Scheme = ApiKeyAuthenticationOptions.Scheme
+			Name = HeaderName,
+			Scheme = Scheme
 		};
 	public static OpenApiSecurityRequirement OpenApiSecurityRequirement
 	{
@@ -31,7 +31,7 @@ public class ApiKeyAuthenticationOptions : AuthenticationSchemeOptions
 				Reference = new OpenApiReference()
 				{
 					Type = ReferenceType.SecurityScheme,
-					Id = ApiKeyAuthenticationOptions.Scheme
+					Id = Scheme
 				}
 			};
 			var rq = new OpenApiSecurityRequirement() {

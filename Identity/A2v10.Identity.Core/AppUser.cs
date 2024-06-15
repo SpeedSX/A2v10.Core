@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System.Collections.Generic;
 
@@ -17,6 +17,9 @@ public enum UpdateFlags
 	Roles = 0x80,
 	Branch = 0x100,
 	ZipCode = 0x200,
+	Locale = 0x400,
+	TwoFactor = 0x800,
+	ExternalId = 0x1000,
 }
 public class AppUser<T> where T : struct
 {
@@ -47,13 +50,15 @@ public class AppUser<T> where T : struct
 	public Boolean ChangePasswordEnabled { get; set; }
 	public String? Roles { get; set; }
     public String? ZipCode { get; set; }
-    public Boolean IsBlocked { get; set; }
+	public String? ExternalId { get; set; }
+	public Boolean IsBlocked { get; set; }
+	public Boolean TwoFactorEnabled { get; set; }
 
-    // for .net framework compatibility
-    public String? PasswordHash2 { get; set; }
+	// for .net framework compatibility
+	public String? PasswordHash2 { get; set; }
 	public String? SecurityStamp2 { get; set; }
     public String? Memo { get; set; }
-
+	public String? AuthenticatorKey { get; set; }
     public Boolean IsEmpty => EqualityComparer<T>.Default.Equals(Id, default);
 	public UpdateFlags Flags { get; set; }
 

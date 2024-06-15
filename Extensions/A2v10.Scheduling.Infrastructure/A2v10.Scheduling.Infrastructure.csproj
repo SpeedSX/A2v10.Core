@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-	  <TargetFrameworks>net6.0;net7.0</TargetFrameworks>
-	  <Version>10.1.8122</Version>
+	  <TargetFrameworks>net6.0;net7.0;net8.0</TargetFrameworks>
+	  <Version>10.1.8180</Version>
+	  <LangVersion>Latest</LangVersion>
 	  <Nullable>enable</Nullable>
 	  <ImplicitUsings>disable</ImplicitUsings>
 	  <Product>A2v10</Product>
@@ -21,7 +22,7 @@
   </PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
 	</ItemGroup>
 
 	<PropertyGroup>

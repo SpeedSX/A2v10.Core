@@ -9,6 +9,7 @@ public record LoginViewModel : SimpleIdentityViewModel
 	public String? Login { get; set; }
 	public String? Password { get; set; }
 	public Boolean RememberMe { get; set; }
+	public String? LoginProviders { get; set; }
 	public Boolean IsPersistent => RememberMe;
 	public String? ReturnUrl { get; init; }
 }
@@ -53,4 +54,23 @@ public record ForgotPasswordChangeViewModel : SimpleIdentityViewModel
     public String? Login { get; set; }
     public String Code { get; init; } = String.Empty;
     public String Password { get; init; } = String.Empty;
+}
+
+public record InitPasswordModel(Int64 UserId, String Token, DateTime Time);
+
+
+public record InitPasswordViewModel : SimpleIdentityViewModel
+{
+	public String? Login { get; set; }
+	public String Token { get; init; } = String.Empty;
+	public String Password { get; init; } = String.Empty;
+}
+
+public record TwoFactorViewModel : SimpleIdentityViewModel
+{
+	public String Login { get; set; } = String.Empty;
+	public String Code { get; init; } = String.Empty;
+	public Boolean RememberMe { get; set; }
+	public Boolean IsPersistent => RememberMe;
+	public String? ReturnUrl { get; init; }
 }

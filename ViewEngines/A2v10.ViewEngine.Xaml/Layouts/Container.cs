@@ -1,11 +1,11 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 namespace A2v10.Xaml;
 
 [ContentProperty("Children")]
 public abstract class Container : UIElement
 {
-	public UIElementCollection Children { get; set; } = new();
+	public UIElementCollection Children { get; set; } = [];
 
 	public Object? ItemsSource { get; set; }
 
@@ -48,6 +48,20 @@ public abstract class Container : UIElement
 		base.OnEndInit();
 		foreach (var c in Children)
 			c.SetParent(this);
+	}
+
+	protected void EndInitAttached(IAttachedPropertyManager attachedPropertyManager)
+	{
+		base.OnEndInit();
+		foreach (var ch in Children)
+		{
+			if (ch._attachedProps == null)
+				continue;
+			foreach (var ap in ch._attachedProps)
+			{
+				attachedPropertyManager.SetProperty(ap.Key, ch, ap.Value);
+			}
+		}
 	}
 
 	public override void OnSetStyles(RootContainer root)

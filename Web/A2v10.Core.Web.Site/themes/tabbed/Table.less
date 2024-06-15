@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 @import "Variables.less";
 
@@ -6,7 +6,10 @@
 
 @compact-ctrl-height:1.67em;
 
-@cell-vert-padding: 6px;
+@cell-vert-padding: 4px;
+@cell-vert-padding-x2: 8px;
+@cell-vert-padding-x15: 7px;
+@cell-horz-padding: 6px;
 
 table {
 	col.fit {
@@ -111,7 +114,7 @@ table.hover {
 .a2-table {
 	border-collapse: separate;
 	border-spacing: 0;
-	line-height:1.8;
+	line-height: 1.8;
 
 	&.striped > tbody > tr:nth-of-type(even) {
 		background-color: @alter-bg-color;
@@ -144,7 +147,7 @@ table.hover {
 	}
 
 	> thead, > tfoot {
-		line-height:2rem;
+		line-height: 1;
 	}
 
 	> thead > tr, > tfoot > tr {
@@ -152,7 +155,7 @@ table.hover {
 	}
 
 	> thead > tr > td, > tfoot > tr > td {
-		padding: 0 @cell-vert-padding;
+		padding: @cell-vert-padding-x15 @cell-horz-padding;
 		background-color: @table-hdr-bg-color;
 		border-color: @table-brd-color;
 	}
@@ -171,6 +174,10 @@ table.hover {
 			.control-group + .control-group {
 				border-left: 1px solid @table-brd-color;
 			}
+		}
+
+		.input-group.static {
+			line-height: 2em;
 		}
 	}
 
@@ -368,6 +375,10 @@ table.hover {
 
 .a2-sticky-container {
 	overflow: auto;
+
+	tr {
+		scroll-margin-top: 35px;
+	}
 }
 
 table.a2-table.sticky {

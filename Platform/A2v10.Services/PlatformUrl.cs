@@ -11,7 +11,7 @@ public class PlatformUrl : IPlatformUrl
 	{
 		var nurl = NormalizePath(url);
 		Kind = kind;
-		var parts = ("_/" + nurl.Path).Split(new Char[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar });
+		var parts = ("_/" + nurl.Path).Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar]);
 		Construct(parts, nurl.Query, id);
 	}
 
@@ -39,9 +39,8 @@ public class PlatformUrl : IPlatformUrl
 	public String Action { get; private set; } = String.Empty;
 	public String? Id { get; private set; }
 
+	public Boolean Auto { get; private set; }
 	public ExpandoObject? Query { get; private set; }
-
-
 
 	public void Redirect(String? path)
 	{
@@ -58,6 +57,7 @@ public class PlatformUrl : IPlatformUrl
 	static (String Path, String Query) NormalizePath(String path)
 	{
 		String query = String.Empty;
+
 		if (path.Contains('?'))
 		{
 			var px = path.Split('?');

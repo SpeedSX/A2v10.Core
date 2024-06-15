@@ -1,7 +1,8 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System.Globalization;
 using System.IO;
+using System.Text.RegularExpressions;
 
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
@@ -22,11 +23,11 @@ internal record ExeclParseResult
 	public List<String> Columns { get; init; }
 }
 
-internal class ExcelParser : IDisposable
+internal partial class ExcelParser : IDisposable
 {
 
 	public String? ErrorMessage { get; set; }
-	public List<ExcelFormatError> Errors { get; } = new();
+	public List<ExcelFormatError> Errors { get; } = [];
 
 	public void Dispose()
 	{
@@ -64,14 +65,32 @@ internal class ExcelParser : IDisposable
 		}
 	}
 
+
+	const String DATEFORMAT_PATTERN = "d{1,4}|m{1,5}|y{2,4}|h{1,2}";
+#if NET7_0_OR_GREATER
+	[GeneratedRegex(DATEFORMAT_PATTERN, RegexOptions.None, "en-US")]
+	private static partial Regex DateFormatRegex();
+#else
+	private static Regex DF_REGEX => new(DATEFORMAT_PATTERN, RegexOptions.Compiled);
+	private static Regex DateFormatRegex() => DF_REGEX;
+#endif
+
+	static Boolean IsDateFormat(NumberingFormat? format)
+	{
+		if (format == null || format.FormatCode == null)
+			return false;
+		var fc = format.FormatCode.Value;
+		if (String.IsNullOrEmpty(fc))
+			return false;
+		return DateFormatRegex().Match(fc).Success;
+	}
 	ExeclParseResult ParseFileImpl(Stream stream, ITableDescription table)
 	{
-		if (table == null)
-			throw new ArgumentNullException(nameof(table));
+        ArgumentNullException.ThrowIfNull(table, nameof(table));
 
 		var rv = new List<ExpandoObject>();
 
-		List<String> columns = new();
+		List<String> columns = [];
 
 		using (var doc = SpreadsheetDocument.Open(stream, isEditable: false))
 		{
@@ -152,11 +171,16 @@ internal class ExcelParser : IDisposable
 						Int32 ix = (Int32) c.StyleIndex.Value; // Int32.Parse(c.StyleIndex);
 						var cellFormat = workBookPart.WorkbookStylesPart?.Stylesheet?.CellFormats?.ChildElements[ix] as CellFormat;
 						var fmtId = cellFormat?.NumberFormatId?.ToString();
-						if (fmtId is not null && numFormats != null && numFormats.ContainsKey(fmtId))
+						if (fmtId is not null && numFormats != null && numFormats.TryGetValue(fmtId, out NumberingFormat? nf))
 						{
 							// number
 							if (Double.TryParse(c.CellValue.Text, NumberStyles.Any, CultureInfo.InvariantCulture, out Double dblVal))
-								table.SetValue(dataRow, columns[colIndex], dblVal);
+							{
+								if (IsDateFormat(nf))
+									table.SetValue(dataRow, columns[colIndex], DateTime.FromOADate(dblVal));
+								else
+									table.SetValue(dataRow, columns[colIndex], dblVal);
+							}
 							else
 								throw new InteropException($"invalid cell value '{c.CellValue.Text}' for format '{cellFormat?.InnerText}'");
 						}

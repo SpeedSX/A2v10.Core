@@ -1,34 +1,53 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
+using System.Text;
 
 using Microsoft.Extensions.DependencyInjection;
 
 using A2v10.Data.Interfaces;
 
 namespace A2v10.Services;
+public class ModelJsonAuto : IModelJsonAuto
+{
+	public AutoRender Render { get; init; }	
+}
 public class ModelJsonBase : IModelBase
 {
 	protected ModelJson? _parent;
 	protected ModelJson Parent => _parent ?? throw new ModelJsonException("Parent is null");
-
 	public String? Source { get; init; }
 	public String? Schema { get; init; }
-	public String? Model { get; init; }	
+	public String? Model { get; init; }
+	public ModelJsonAuto? Auto { get; init; }
+	IModelJsonAuto? IModelBase.ModelAuto => Auto;
 	public Boolean Signal { get; init; }
-
+	public List<String>? Roles { get; init; }	
 	public Int32 CommandTimeout { get; init; }
 
 	public ExpandoObject? Parameters { get; set; }
-
+	public Dictionary<String, PermissionBits>? Permissions { get; init; }
 	internal virtual void SetParent(ModelJson rm)
 	{
 		_parent = rm;
 	}
 
+	public Boolean CheckRoles(IEnumerable<String>? roles)
+	{
+		if (CurrentRoles == null) 
+			return true;
+		if (roles == null)
+			return false;
+		foreach (var r in CurrentRoles)
+		{
+			if (roles.FirstOrDefault(x => x == r) != null)
+				return true;	
+		}
+		return false;
+	}
 	public String? DataSource => String.IsNullOrEmpty(Source) ? Parent?.Source : Source;
 	public String? CurrentModel => String.IsNullOrEmpty(Model) ? Parent.Model : Model;
 	public String CurrentSchema => (String.IsNullOrEmpty(Schema) ? Parent.Schema : Schema) ?? "dbo";
-
+	public IEnumerable<String>? CurrentRoles => Roles ?? Parent.Roles;
 	public Boolean HasModel() => Model != String.Empty && !String.IsNullOrEmpty(CurrentModel);
 
 	public virtual String LoadProcedure()
@@ -38,6 +57,15 @@ public class ModelJsonBase : IModelBase
 			throw new ModelJsonException("The model is empty (Load))");
 		return $"[{CurrentSchema}].[{cm}.Load]";
 	}
+
+    public virtual String ExportProcedure()
+    {
+        var cm = CurrentModel;
+        if (String.IsNullOrEmpty(cm))
+            throw new ModelJsonException("The model is empty (Load.Export))");
+        return $"[{CurrentSchema}].[{cm}.Load.Export]";
+    }
+
     public virtual String UpdateProcedure()
     {
         var cm = CurrentModel;
@@ -110,22 +138,57 @@ public class ModelJsonBlob : ModelJsonViewBase, IModelBlob
 	public String? Suffix { get; init; }
     public String? OutputFileName { get; init; }
     public String? ClrType { get; init; }
-    public Boolean Zip { get; init; }
+	public String? BlobSource { get; init; }
+	public String? BlobStorage { get; init; }
+	public String? Container { get; init; }
+	public String? Locale { get; }
+	public Boolean Zip { get; init; }
     public ModelBlobType Type { get; init; }
 	public ModelParseType Parse { get; init; }
 
-	public override String LoadProcedure()
+	public String LoadBlobProcedure()
 	{
 		var strSuffix = Suffix ?? "Load";
 		var strKey = Key != null ? $"{Key}." : String.Empty;
 		return $"[{CurrentSchema}].[{CurrentModel}.{strKey}{strSuffix}]";
 	}
 
-    public override String UpdateProcedure()
+    public String UpdateBlobProcedure()
     {
         var strSuffix = Suffix ?? "Update";
         var strKey = Key != null ? $"{Key}." : String.Empty;
         return $"[{CurrentSchema}].[{CurrentModel}.{strKey}{strSuffix}]";
+    }
+
+	public String DeleteBlobProcedure()
+	{
+		var strSuffix = "Delete";
+		var strKey = Key != null ? $"{Key}." : String.Empty;
+		return $"[{CurrentSchema}].[{CurrentModel}.{strKey}{strSuffix}]";
+	}
+}
+
+public class ModelJsonExport : IModelExport
+{
+    public String? FileName { get; init; }
+    public String? Template { get; init; }
+    public ModelJsonExportFormat Format { get; init; }
+    public String? Encoding { get; init; }
+
+    public String? GetTemplateExpression()
+    {
+        return Template?.TemplateExpression();
+    }
+
+    public Encoding GetEncoding()
+    {
+        return Encoding switch
+        {
+            "1251" => System.Text.Encoding.GetEncoding(1251),
+            "866" => System.Text.Encoding.GetEncoding(866),
+            "utf8" => System.Text.Encoding.UTF8,
+            _ => throw new ModelJsonException($"Invalid encoding value '{Encoding}'. Possible values are 'utf8', '1251', '866'"),
+        };
     }
 }
 
@@ -134,13 +197,15 @@ public class ModelJsonView : ModelJsonViewBase, IModelView
 	// explicit
 	IModelMerge? IModelView.Merge => Merge;
 	IModelView? IModelView.TargetModel => TargetModel;
-
-	public String? View { get; set; }
+    IModelExport? IModelView.Export => Export;
+	public String? EndpointHandler { get; set; }
+    public String? View { get; set; }
 	public String? ViewMobile { get; set; }
 	public String? Template { get; set; }
 	public String? CheckTypes { get; set; }
+    public ModelJsonExport? Export { get; set; }
 
-	public virtual Boolean IsDialog => false;
+    public virtual Boolean IsDialog => false;
 	public Boolean IsIndex => Index;
 	public Boolean IsSkipDataStack => SkipDataStack;
 	public Boolean IsPlain => Plain;
@@ -152,7 +217,7 @@ public class ModelJsonView : ModelJsonViewBase, IModelView
 	public List<String>? Scripts { get; init; } 
 	public List<String>? Styles { get; init; }
 
-	public String? SqlTextKey()
+    public String? SqlTextKey()
 	{
 		var cm = CurrentModel;
 		if (cm == null)
@@ -166,6 +231,13 @@ public class ModelJsonView : ModelJsonViewBase, IModelView
 		if (mobile && !String.IsNullOrEmpty(ViewMobile))
 			return ViewMobile;
 		return View ?? throw new InvalidProgramException("View not defined");
+	}
+
+	public String? GetRawView(Boolean mobile)
+	{
+		if (mobile && !String.IsNullOrEmpty(ViewMobile))
+			return ViewMobile;
+		return View;
 	}
 
 	public IModelView Resolve(IDataModel model)
@@ -188,7 +260,16 @@ public class ModelJsonView : ModelJsonViewBase, IModelView
 		return $"[{CurrentSchema}].[{cm}.{action}]";
 	}
 
-	public String DeleteProcedure(String? propName)
+    public override String ExportProcedure()
+    {
+        var cm = CurrentModel;
+        String action = Index ? "Index" : "Load";
+        if (String.IsNullOrEmpty(cm))
+            throw new ModelJsonException($"The model is empty ({action})");
+        return $"[{CurrentSchema}].[{cm}.{action}.Export]";
+    }
+
+    public String DeleteProcedure(String? propName)
 	{
 		var cm = CurrentModel;
 		if (!String.IsNullOrEmpty(propName))
@@ -245,7 +326,8 @@ public enum ModelCommandType
 	invokeTarget,
 	// new
 	csharp,
-	signal
+	signal,
+	auto
 }
 
 public class ModelJsonCommand : ModelJsonBase, IModelCommand
@@ -300,11 +382,11 @@ public class ModelJsonReport : ModelJsonBase, IModelReport
 		);
 	}
 
-	readonly String[] ExcludeParams = new String[] { "Rep", "Base", "Format" };
+	readonly String[] ExcludeParams = ["Rep", "Base", "Format"];
 
 	public ExpandoObject CreateParameters(ExpandoObject? query, Action<ExpandoObject> setParams)
 	{
-		ExpandoObject prms = new();
+		ExpandoObject prms = [];
 		prms.Append(Parameters);
 		prms.Append(query, ExcludeParams);
 		setParams?.Invoke(prms);
@@ -313,7 +395,7 @@ public class ModelJsonReport : ModelJsonBase, IModelReport
 
 	public ExpandoObject CreateVariables(ExpandoObject? query, Action<ExpandoObject> setParams)
 	{
-		ExpandoObject vars = new();
+		ExpandoObject vars = [];
 		vars.Append(Variables);
 		vars.Append(Parameters);
 		vars.Append(query, ExcludeParams);
@@ -334,6 +416,7 @@ public class ModelJson
 	public String? Source { get; init; }
 	public String? Schema { get; init; }
 	public String? Model { get; init; }
+	public List<String>? Roles { get; init; }
 
 	public Dictionary<String, ModelJsonView> Actions { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<String, ModelJsonDialog> Dialogs { get; init; } = new(StringComparer.OrdinalIgnoreCase);

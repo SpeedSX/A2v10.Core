@@ -8,7 +8,7 @@ public class BlobInfo : IBlobInfo
 	public String? Mime { get; init; }
 	public String? Name { get; init; }
 	public Guid Token { get; init; }
-	public Byte[]? Stream { get; init; }
+	public Byte[]? Stream { get; set; }
 	public String? BlobName { get; init; }
     public Boolean SkipToken { get; init; }
     public Boolean CheckToken => !SkipToken;
@@ -26,8 +26,21 @@ public record BlobUpdateInfo : IBlobUpdateInfo
     public String? Key { get; set; }
     public Object? Id { get; set; }
 }
+
+public record BlobUpdateString
+{
+	public Int32? TenantId { get; set; }
+	public Int64 UserId { get; set; }
+	public String? Mime { get; set; }
+	public String? Name { get; set; }
+	public String? Stream { get; set; }
+	public String? Key { get; set; }
+	public Object? Id { get; set; }
+}
+
 public record BlobUpdateOutput : IBlobUpdateOutput
 {
-    public Object? Id { get; set; }
+    public Object Id { get; set; } = new();
+    public String? Name { get; set; }
     public Guid? Token { get; set; }
 }

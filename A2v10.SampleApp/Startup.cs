@@ -1,4 +1,4 @@
-// Copyright © 2020-2022 Alex Kukhtin. All rights reserved.
+// Copyright © 2020-2023 Oleksandr Kukhtin. All rights reserved.
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -9,16 +9,11 @@ using A2v10.ReportEngine.Pdf;
 
 namespace A2v10.SampleApp;
 
-public class Startup
+public class Startup(IConfiguration configuration)
 {
-	public Startup(IConfiguration configuration)
-	{
-		Configuration = configuration;
-	}
+    public IConfiguration Configuration { get; } = configuration;
 
-	public IConfiguration Configuration { get; }
-
-	public void ConfigureServices(IServiceCollection services)
+    public void ConfigureServices(IServiceCollection services)
 	{
 		services.UsePlatform(Configuration);
 
@@ -31,6 +26,6 @@ public class Startup
 
 	public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
 	{
-		app.ConfigurePlatform(env);
+		app.ConfigurePlatform(env, Configuration);
 	}
 }

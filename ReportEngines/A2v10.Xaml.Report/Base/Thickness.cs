@@ -83,6 +83,22 @@ public record Thickness
 		}
 		return null;
 	}
+
+	public override String ToString()
+	{
+		var t = All();
+		if (t != null)
+			return t.ToString();
+		var h = Horizontal();
+		var v = Vertical();
+		if (v != null && h != null)
+		{
+			FormattableString fs = $"{v},{h}";
+			return fs.ToString(CultureInfo.InvariantCulture);
+		}
+		FormattableString fs1 = $"{Top},{Right},{Bottom},{Left}";
+		return fs1.ToString(CultureInfo.InvariantCulture);
+	}
 }
 
 public class ThicknessConverter : TypeConverter

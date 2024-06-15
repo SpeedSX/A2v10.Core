@@ -11,6 +11,7 @@ using QuestPDF.Infrastructure;
 using QuestPDF.Elements.Table;
 
 using A2v10.Xaml.Report;
+using A2v10.ReportEngine.Script;
 
 namespace A2v10.ReportEngine.Pdf;
 
@@ -21,20 +22,14 @@ internal enum CellKind
 	Footer
 }
 
-internal class TableComposer : FlowElementComposer
+internal class TableComposer(Table table, RenderContext context) : FlowElementComposer
 {
-	private readonly Table _table;
-	private readonly RenderContext _context;
+	private readonly Table _table = table;
+	private readonly RenderContext _context = context;
 
-	private readonly Dictionary<TableCell, JsValue> _accessFuncs = new();
+	private readonly Dictionary<TableCell, JsValue> _accessFuncs = [];
 
-	public TableComposer(Table table, RenderContext context)
-	{
-		_table = table;
-		_context = context;
-	}
-
-	internal override void Compose(IContainer container, Object? value = null)
+    internal override void Compose(IContainer container, Object? value = null)
 	{
 		if (!_context.IsVisible(_table))
 			return;

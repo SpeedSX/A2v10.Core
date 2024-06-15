@@ -1,9 +1,11 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Threading.Tasks;
 using System.IO;
 using System.Net.Http.Headers;
+using System.Dynamic;
+using System.Text;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,30 +20,23 @@ namespace A2v10.Platform.Web.Controllers;
 
 [ExecutingFilter]
 [Authorize]
-public class FileController : BaseController
+public class FileController(IApplicationHost host,
+    ILocalizer localizer, ICurrentUser currentUser, IProfiler profiler,
+    IDataService _dataService, ITokenProvider _tokenProvider, IAppCodeProvider _appCodeProvider) : BaseController(host, localizer, currentUser, profiler)
 {
-	private readonly IDataService _dataService;
-	private readonly ITokenProvider _tokenProvider;
-	private readonly IAppCodeProvider _appCodeProvider;
-
-	public FileController(IApplicationHost host,
-		ILocalizer localizer, ICurrentUser currentUser, IProfiler profiler, 
-		IDataService dataService, ITokenProvider tokenProvider, IAppCodeProvider appCodeProvider)
-		: base(host, localizer, currentUser, profiler)
-	{
-		_dataService = dataService;
-		_tokenProvider = tokenProvider;
-		_appCodeProvider = appCodeProvider;
-	}
-
+	// always Cached!
+	[ResponseCache(Duration = 2592000, Location = ResponseCacheLocation.Client)]
 	[Route("_file/{*pathInfo}")]
 	[HttpGet]
 	public async Task<IActionResult> DefaultGet(String pathInfo)
 	{
 		try
 		{
-			var blob = await _dataService.LoadBlobAsync(UrlKind.File, pathInfo, SetSqlQueryParams)
-				?? throw new InvalidOperationException("Blob not found");
+			var blob = await _dataService.LoadBlobAsync(UrlKind.File, pathInfo, (prms) =>
+			{
+				SetSqlQueryParams(prms);
+				SetRequestQueryParams(prms);
+			}) ?? throw new InvalidOperationException("Blob not found");
 
             if (blob.CheckToken)
                 ValidateToken(blob.Token);
@@ -58,17 +53,24 @@ public class FileController : BaseController
 				};
 				ar.AddHeader("Content-Disposition", cdh.ToString());
 			}
-			else if (MimeTypes.IsImage(blob.Mime))
-			{
-				ar.EnableCache();
-			}
 			return ar;
 		}
 		catch (Exception ex)
 		{
-			var accept = Request.Headers["Accept"].ToString();
+			var accept = Request.Headers.Accept.ToString();
 			if (accept != null && accept.Trim().StartsWith("image", StringComparison.OrdinalIgnoreCase))
 				return WriteImageException(ex);
+			else if (Request.Query["export"].Count > 0)
+			{
+				var bytes = Encoding.UTF8.GetBytes(ex.ToString());
+				var ar = new WebBinaryActionResult(bytes, MimeTypes.Text.Plain);
+				var cdh = new ContentDispositionHeaderValue("attachment")
+				{
+					FileNameStar = "error.txt"
+				};
+				ar.AddHeader("Content-Disposition", cdh.ToString());
+				return ar;
+			}
 			else
 				return WriteExceptionStatus(ex);
 		}
@@ -88,20 +90,58 @@ public class FileController : BaseController
 			using var fileStream = file.OpenReadStream();
             var name = Path.GetFileName(file.FileName);
 
-            var result = await _dataService.SaveFileAsync(pathInfo, (blob) =>
+            var result = await _dataService.SaveBlobAsync(pathInfo, (blob) =>
 				{
 					blob.Stream = fileStream;
 					blob.Name = name;
 					blob.Mime = file.ContentType;
+					blob.TenantId = _host.IsMultiTenant ? TenantId : null;
 				}, 
-				SetSqlQueryParams
+				(prms) => {
+					SetSqlQueryParams(prms);
+					SetRequestQueryParams(prms);
+				}
 			);
+			result.ReplaceValue("Token", (v) =>
+			{
+				if (v is Guid guid)
+					return _tokenProvider.GenerateToken(guid);
+				return v;
+			});
             String json = JsonConvert.SerializeObject(result, JsonHelpers.StandardSerializerSettings);
             return Content(json, MimeTypes.Application.Json);
         }
         catch (Exception ex)
 		{
 			return WriteExceptionStatus(ex);
+		}
+	}
+
+	[Route("_file/_delete/{*pathInfo}")]
+	[HttpGet]
+	public async Task<IActionResult> DeleteFile(String pathInfo)
+	{
+		try
+		{
+			var result = await _dataService.DeleteBlobAsync(pathInfo, SetSqlQueryParams);
+			String json = JsonConvert.SerializeObject(result, JsonHelpers.StandardSerializerSettings);
+			return Content(json, MimeTypes.Application.Json);
+		}
+		catch (Exception ex)
+		{
+			return WriteExceptionStatus(ex);
+		}
+	}
+
+	void SetRequestQueryParams(ExpandoObject prms)
+	{
+		foreach (var qkey in Request.Query.Keys)
+		{
+			if (qkey == "export" || qkey == "token")
+				continue;
+			var val = Request.Query[qkey].ToString();
+			if (!String.IsNullOrEmpty(val))
+				prms.Set(qkey, val);
 		}
 	}
 
@@ -136,7 +176,7 @@ public class FileController : BaseController
 			if (!new FileExtensionContentTypeProvider().TryGetContentType(pathInfo, out String? contentType))
 				contentType = MimeTypes.Application.OctetStream;
             // without using! The FileStreamResult will close stream
-            var stream = _appCodeProvider.FileStreamRO(_appCodeProvider.MakePath("_files/", pathInfo))
+            var stream = _appCodeProvider.FileStreamResource(_appCodeProvider.MakePath("_files/", pathInfo))
                 ?? throw new FileNotFoundException($"File not found '{pathInfo}'");
 			return new FileStreamResult(stream, contentType)
 			{

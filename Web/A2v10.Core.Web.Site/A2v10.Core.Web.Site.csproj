@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
-		<TargetFramework>net7.0</TargetFramework>
+		<TargetFramework>net8.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<LangVersion>Latest</LangVersion>
 		<UserSecretsId>aspnet-A2v10.Core.Web.Site-3AAA4AB7-4DED-4E64-815B-F75EEDCF167E</UserSecretsId>
@@ -15,25 +15,26 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Content Remove="C:\Users\alexk\.nuget\packages\a2v10.workflow.engine\10.1.8102\contentFiles\any\net6.0\SqlScripts\a2v10_workflow.sql" />
-	</ItemGroup>
-
-	<ItemGroup>
 	  <None Include="..\..\Platform\A2v10.App.Assets\Application\%40sql\a2v10_platform.sql" Link="a2v10_platform.sql" />
 	  <None Include="..\..\Platform\A2v10.App.Assets\Application\%40sql\a2v10_platform_mt_catalog.sql" Link="a2v10_platform_mt_catalog.sql" />
 	  <None Include="..\..\Platform\A2v10.App.Assets\Application\%40sql\a2v10_platform_mt_segment.sql" Link="a2v10_platform_mt_segment.sql" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="A2v10.Workflow.Engine" Version="10.1.8109" />
+		<PackageReference Include="A2v10.Workflow.Engine" Version="10.1.8142" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="8.0.6" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="8.0.6" />
 	</ItemGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\..\BlobStorages\AzureBlobStorage\AzureBlobStorage.csproj" />
 		<ProjectReference Include="..\..\Extensions\A2v10.Scheduling.Commands\A2v10.Scheduling.Commands.csproj" />
 		<ProjectReference Include="..\..\Extensions\A2v10.Scheduling\A2v10.Scheduling.csproj" />
 		<ProjectReference Include="..\..\Messaging\A2v10.MailClient\A2v10.MailClient.csproj" />
+		<ProjectReference Include="..\..\Platform\A2v10.AppRuntimeBuilder\A2v10.AppRuntimeBuilder.csproj" />
 		<ProjectReference Include="..\..\Platform\A2v10.Platform\A2v10.Platform.csproj" />
 		<ProjectReference Include="..\..\ReportEngines\A2v10.ReportEngine.Pdf\A2v10.ReportEngine.Pdf.csproj" />
+		<ProjectReference Include="..\..\ViewEngines\A2v10.ViewEngine.Xaml\A2v10.ViewEngine.Xaml.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -50,6 +51,10 @@
 
 	<ItemGroup>
 		<Content Update="wwwroot\App_application\main\test\test.view.xaml" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="wwwroot\img\logo\" />
 	</ItemGroup>
 
 </Project>

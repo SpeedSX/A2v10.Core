@@ -23,11 +23,11 @@
 @dnager-validator-shadow: 1px 4px 10px @danger-shadow-color;
 
 
-/*TODO: 
-    2. v-focus-parent directive
-    3. .validator width
-    4. .validator arrows
-*/
+//TODO: 
+//    2. v-focus-parent directive
+//    3. .validator width
+//    4. .validator arrows
+
 .validation-summary {
 	font-size: 0.95rem;
 	padding: 4px 6px;
@@ -93,7 +93,7 @@
 		top: 100%;
 		bottom: auto;
 		padding: 2px 6px 4px 6px;
-		border-radius:@control-brd-radius;
+		border-radius: @control-brd-radius;
 		background-color: @danger-bg-color;
 		color: @danger-txt-color;
 		border: 1px solid @danger-brd-color;
@@ -363,6 +363,13 @@
 		font-size: .9rem;
 	}
 
+	&.no-border {
+		.input-group {
+			border: none;
+			border-radius: 0;
+		}
+	}
+
 	&.with-width {
 		.input-group {
 			width: 100%;
@@ -523,13 +530,16 @@
 .control-group.disabled {
 	.input-group {
 		background-color: @disabled-bg-color;
-
-		opacity:@control-disabled-opacity;
+		opacity: @control-disabled-opacity;
 	}
 
 	a:not(.rendershow) {
 		pointer-events: none;
 		opacity: 0.5;
+	}
+
+	.selector-combo {
+		pointer-events: none;
 	}
 }
 

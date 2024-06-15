@@ -1,4 +1,6 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
+
+using System.Collections.Generic;
 
 using A2v10.Infrastructure;
 
@@ -7,6 +9,10 @@ public class XamlElement : ISupportBinding, IInitComplete
 {
 
 	internal XamlElement? Parent { get; private set; }
+	internal Dictionary<String, Object>? _attachedProps;
+
+	public Action<XamlElement>? Bindings { get; init; }
+	public Action<IDictionary<String, Object>>? Attach { get; init; }
 
 	BindImpl? _bindImpl;
 
@@ -45,6 +51,12 @@ public class XamlElement : ISupportBinding, IInitComplete
 
 	protected virtual void OnEndInit()
 	{
+		Bindings?.Invoke(this);
+		if (Attach != null)
+		{
+			_attachedProps = [];
+			Attach.Invoke(_attachedProps);
+		}
 	}
 
 	public virtual void OnSetStyles(RootContainer root)
@@ -174,5 +186,13 @@ public class XamlElement : ISupportBinding, IInitComplete
 		OnEndInit();
 	}
 	#endregion
+
+
+	public static T Create<T>(Action<BindImpl>? action) where T : ISupportBinding, new()
+	{
+		var elem = new T();
+		action?.Invoke(elem.BindImpl);
+		return elem;
+	}
 }
 

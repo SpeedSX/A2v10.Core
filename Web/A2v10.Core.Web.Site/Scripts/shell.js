@@ -1,7 +1,8 @@
-﻿// Copyright © 2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2023-2024 Oleksandr Kukhtin. All rights reserved.
 
-/*20230829-8146*/
-/* tabbled:shell.js */
+/*20240403-8272*/
+
+/* tabbed:shell.js */
 (function () {
 	const eventBus = require('std:eventBus');
 	const popup = require('std:popup');
@@ -38,7 +39,8 @@
 				homeLoaded: false,
 				lockRoute: false,
 				requestsCount: 0,
-				contextTabKey: 0
+				contextTabKey: 0,
+				newVersionAvailable: false
 			};
 		},
 		components: {
@@ -49,23 +51,24 @@
 			modelStack() { return this.__dataStack__; },
 			hasModals() { return this.modals.length > 0; },
 			sidePaneVisible() { return !!this.sidePaneUrl; },
-			storageKey() { return this.appData.appId + '_tabs'; },
+			storageKey() { return `${this.appData.appId}_${this.appData.userId}_tabs`; },
 			processing() { return !this.hasModals && this.requestsCount > 0; },
 			canPopupClose() { return this.contextTabKey > 10; /* 10 - home */ },
 			canPopupCloseRight() { return this.contextTabKey && this.tabs.some(v => v.key > this.contextTabKey); },
 			canReopenClosed() { return this.closedTabs.length > 0 },
-			hasModified() { return this.tabs.some(t => t.root && t.root.$isDirty); }
+			hasModified() { return this.tabs.some(t => t.root && t.root.$isDirty); },
+			maxTabWidth() { return `calc((100% - 50px) / ${this.tabs.length})`; }
 		},
 		methods: {
-			navigate(m) {
-				let tab = this.tabs.find(tab => tab.url == m.url);
+			navigate(u1) {
+				let tab = this.tabs.find(tab => tab.url == u1.url);
 				if (!tab) {
 					let parentUrl = '';
 					if (this.activeTab)
 						parentUrl = this.activeTab.url || '';
-					tab = { title: m.title, url: m.url, query: m.query || '', loaded: true, key: tabKey++, root: null, parentUrl: parentUrl, reload:0, debug:false };
+					tab = { title: u1.title, url: u1.url, query: u1.query || '', loaded: true, key: tabKey++, root: null, parentUrl: parentUrl, reload: 0, debug: false };
 					this.tabs.push(tab);
-					var cti = this.closedTabs.findIndex(t => t.url === m.url);
+					var cti = this.closedTabs.findIndex(t => t.url === u1.url);
 					if (cti >= 0)
 						this.closedTabs.splice(cti, 1);
 				}
@@ -82,6 +85,10 @@
 			navigateTo(to) {
 				this.navigatingUrl = to.url;
 				this.navigate({ url: to.url, title: '' });
+			},
+			dummy() {},
+			reloadApplication() {
+				window.location.reload();
 			},
 			setDocTitle(title) {
 				let tab = this.activeTab;
@@ -228,6 +235,17 @@
 				}
 				this.storeTabs();
 			},
+			clearLocalStorage() {
+				let keys = [];
+				for (let f in window.localStorage) {
+					if (window.localStorage.hasOwnProperty(f) && f.endsWith('_tabs')) {
+						if (f != this.storageKey)
+							keys.push(f);
+					}
+				}
+				if (keys.length > 10)
+					keys.forEach(f => window.localStorage.removeItem(f));
+			},
 			storeTabs() {
 				var mapTab = (t) => { return { title: t.title, url: t.url, query: t.query || '', parentUrl: t.parentUrl }; };
 				let ix = this.tabs.indexOf(this.activeTab);
@@ -334,8 +352,11 @@
 				}, 50); // same as modal
 			},
 			_requery(vm, data) {
-				if (!vm || !vm.__tabUrl__)
-					return;
+				if (!vm) return;
+				if (vm.__requery) {
+					vm.__requery();
+				}
+				if (!vm.__tabUrl__) return;
 				let t = this.tabs.find(t => tabUrlKey(t) === vm.__tabUrl__);
 				if (!t) return;
 				let run = data ? data.Run : false;
@@ -517,6 +538,7 @@
 			popup.registerPopup(this.$el);
 			// home page here this.tabs.push({})
 			this.$el._close = this.__clickOutside;
+			this.clearLocalStorage();
 			this.restoreTabs();
 		},
 		created() {
@@ -541,6 +563,7 @@
 			eventBus.$on('closePlain', this.closeTabFromStore);
 			eventBus.$on('pageReloaded', this._pageReloaded);
 			eventBus.$on('toParentTab', this._eventToParentTab);
+			eventBus.$on('closeAllTabs', this.popupCloseAll);
 			eventBus.$on('beginRequest', () => {
 				me.requestsCount += 1;
 				window.__requestsCount__ = me.requestsCount;
@@ -549,6 +572,11 @@
 				me.requestsCount -= 1;
 				window.__requestsCount__ = me.requestsCount;
 			});
+			eventBus.$on('checkVersion', (ver) => {
+				if (ver && this.appData && ver !== this.appData.version)
+					this.newVersionAvailable = true;
+			});
+
 			signalR.startService();
 
 			window.addEventListener("beforeunload", (ev) => {
@@ -558,7 +586,6 @@
 				if (ev) ev.returnValue = true;
 				return true;
 			});
-
 		}
 	});
 })();

@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using Microsoft.Extensions.Options;
 
 using A2v10.Infrastructure;
+using System.Text;
 
 namespace A2v10.ViewEngine.Xaml;
 
@@ -37,7 +38,7 @@ public class XamlPartProvider : IXamlPartProvider
 				};
                 watcher.Changed += Watcher_Changed;
                 watcher.EnableRaisingEvents = true;
-				_watchers ??= new List<FileSystemWatcher>();
+				_watchers ??= [];
                 _watchers.Add(watcher);
 
             }
@@ -51,31 +52,32 @@ public class XamlPartProvider : IXamlPartProvider
 
 	public Object? GetCachedXamlPart(String path)
 	{
-		if (_cache.TryGetValue(path, out var obj))
-			return obj;
-		var res = GetXamlPart(path);
-		_cache.TryAdd(path, res);
-		return res;
+		return _cache.GetOrAdd(path, path => GetXamlPart(path));
 	}
 
 	public Object? GetCachedXamlPartOrNull(String path)
 	{
-		if (_cache.TryGetValue(path, out var obj))
-			return obj;
-		var res = GetXamlPartOrNull(path);
-		_cache.TryAdd(path, res); // add null too
-		return res;
+		return _cache.GetOrAdd(path, path => GetXamlPartOrNull(path));
 	}
 
 	public Object? GetXamlPart(String path)
-	{
-		using var stream = _codeProvider.FileStreamRO(path)
+    {
+		path = path.Replace('\\', '/'); // (!)
+        using var stream = _codeProvider.FileStreamRO(path)
 			?? throw new XamlException($"File not found '{path}'");
 		return _readerService.Load(stream, new Uri(path, UriKind.Relative));
 	}
+
+	public Object? GetXamlPartText(String text, String path)
+	{
+		using var ms = new MemoryStream(Encoding.UTF8.GetBytes(text));
+		return _readerService.Load(ms, new Uri(path, UriKind.Relative));
+	}
+
 	public Object? GetXamlPartOrNull(String path)
 	{
-		using var stream = _codeProvider.FileStreamRO(path);
+        path = path.Replace('\\', '/'); // (!)
+        using var stream = _codeProvider.FileStreamRO(path);
 		if (stream == null)
 			return null;
 		return _readerService.Load(stream, new Uri(path, UriKind.Relative));
