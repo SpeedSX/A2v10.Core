@@ -1,5 +1,6 @@
-﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2025 Oleksandr Kukhtin. All rights reserved.
 
+using System.Collections.Generic;
 using System.Text;
 
 using A2v10.Infrastructure;
@@ -400,9 +401,14 @@ public class BindCmd : BindBase
 
 	String GetOptionsForFile(RenderContext _)
 	{
-		if (FileAction == FileAction.Unknown)
+		if (FileAction == FileAction.Unknown && !SaveRequired)
 			return nullString;
-		return $"{{action: '{FileAction.ToString().ToLowerInvariant()}'}}";
+		List<String> list = [];
+		if (SaveRequired)
+			list.Add("saveRequired: true");
+		if (FileAction != FileAction.Unknown)
+			list.Add($"action: '{FileAction.ToString().ToLowerInvariant()}'");
+		return $"{{{String.Join(", ", list)}}}";
 	}
 
 	String GetOptionsValid(RenderContext _)
@@ -456,7 +462,11 @@ public class BindCmd : BindBase
 			return dataBind.GetPath(context);
 		}
 		else if (Data != null)
+		{
+			if (Data.StartsWith('{'))
+				return Data;
 			return $"'{Data}'";
+		}
 		return nullString;
 	}
 
@@ -586,7 +596,10 @@ public class BindCmd : BindBase
 			case CommandType.Execute:
 				MergeDisabled(tag, $"!$canExecute('{CommandName}', {CommandArgument(context, true)}, {GetOptions(context)})");
 				break;
-			case CommandType.Append:
+            case CommandType.ExecuteSelected:
+                MergeDisabled(tag, $"!$canExecSel('{CommandName}', {CommandArgument(context, true)}, {GetOptions(context)})");
+                break;
+            case CommandType.Append:
 			case CommandType.Prepend:
 			case CommandType.Remove:
 				if (context.IsDataModelIsReadOnly)
@@ -608,7 +621,6 @@ public class BindCmd : BindBase
 			case CommandType.OpenSelected:
 			case CommandType.OpenSelectedFrame:
 			case CommandType.Select:
-			case CommandType.ExecuteSelected:
 			case CommandType.DbRemoveSelected:
 				{
 					var arg = GetBinding(nameof(Argument));

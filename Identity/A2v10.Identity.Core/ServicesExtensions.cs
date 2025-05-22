@@ -1,14 +1,21 @@
-﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
-
-namespace Microsoft.Extensions.DependencyInjection;
+﻿// Copyright © 2015-2025 Oleksandr Kukhtin. All rights reserved.
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 
-using A2v10.Web.Identity;
 using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.DataProtection.Repositories;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Options;
+
+using A2v10.Web.Identity;
+using A2v10.Identity.Core;
+
+namespace Microsoft.Extensions.DependencyInjection;
+
 public static class ServicesExtensions
 {
 	public static void ConfigureDefaultIdentityOptions(IdentityOptions options)
@@ -59,12 +66,6 @@ public static class ServicesExtensions
 		//.AddScoped<IUserRoleStore<AppUser<T>>>(s => s.GetRequiredService<AppUserStore<T>>())
 		.AddScoped<ISecurityStampValidator, SecurityStampValidator<AppUser<T>>>();
 		      
-#if NET8_0_OR_GREATER
-		// do nothing
-#else
-		services.AddScoped<ISystemClock, SystemClock>();
-#endif
-
 		/* 
 		services.AddScoped<AppRoleStore<T>>()
 			.AddScoped<IRoleStore<AppRole<T>>>(s => s.GetRequiredService<AppRoleStore<T>>());
@@ -170,5 +171,22 @@ public static class ServicesExtensions
 
         return services;
     }
+
+
+	public static IServiceCollection AddDataProtectionSqlServer<T>(this IServiceCollection services, String appName)
+        where T : struct
+    {
+        services.AddSingleton<IXmlRepository, SqlServerDataProtectionRepository<T>>();
+        services.AddDataProtection().SetApplicationName(appName);
+        services.AddSingleton<IConfigureOptions<KeyManagementOptions>>(sp =>
+        {
+            var repo = sp.GetRequiredService<IXmlRepository>();
+            return new ConfigureOptions<KeyManagementOptions>(options =>
+            {
+                options.XmlRepository = repo;
+            });
+        });
+        return services;
+	}
 }
 

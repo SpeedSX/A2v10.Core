@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System.Collections.Generic;
 
@@ -10,6 +10,7 @@ public class ComboBoxItem : UIElementBase
 	public String? Content { get; set; }
 	public Object? Value { get; set; }
 	public Boolean Bold { get; set; }
+	public Object? CssClass { get; set; }
 
 	public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 	{
@@ -22,6 +23,12 @@ public class ComboBoxItem : UIElementBase
 			option.MergeAttribute(":class", $"{{bold: {boldBind.GetPathFormat(context)}}} ");
 		else if (Bold)
 			option.AddCssClass("bold");
+
+		var cssClassBind = GetBinding(nameof(CssClass));
+		if (cssClassBind != null)
+			option.MergeAttribute(":class", cssClassBind.GetPathFormat(context));
+		else if (CssClass != null)
+			option.AddCssClass(CssClass.ToString());
 
 		MergeAttributes(option, context, MergeAttrMode.Visibility);
 		if (Value != null)
@@ -65,8 +72,9 @@ public class ComboBox : ValuedControl, ITableControl
 	public TextAlign Align { get; set; }
 	public ComboBoxStyle Style { get; set; }
 	public String? GroupBy { get; set; }
+    public Boolean Highlight { get; set; }
 
-	ComboBoxItems? _children;
+    ComboBoxItems? _children;
 
 	public ComboBoxItems Children
 	{
@@ -96,7 +104,9 @@ public class ComboBox : ValuedControl, ITableControl
 			combo.MergeAttribute("groupby", GroupBy);
 		MergeAttributes(combo, context);
 		MergeAlign(combo, context, Align);
-		MergeBoolAttribute(combo, context, nameof(ShowValue), ShowValue);
+        if (Highlight)
+            combo.MergeAttribute(":highlight", "true");
+        MergeBoolAttribute(combo, context, nameof(ShowValue), ShowValue);
 		SetSize(combo, nameof(ComboBox));
 		MergeDisabled(combo, context);
 		var isBind = GetBinding(nameof(ItemsSource));
@@ -110,15 +120,18 @@ public class ComboBox : ValuedControl, ITableControl
 					throw new XamlException("The ComboBox with the specified ItemsSource must have only one ComboBoxItem element");
 				}
 				var elem = Children[0];
-				var contBind = elem.GetBinding("Content") 
+				var contBind = elem.GetBinding("Content")
 					?? throw new XamlException("ComboBoxItem. Content binging must be specified");
-                combo.MergeAttribute(":name-prop", $"'{contBind.Path}'"); /*without context!*/
-				var valBind = elem.GetBinding("Value") 
+				combo.MergeAttribute(":name-prop", $"'{contBind.Path}'"); /*without context!*/
+				var valBind = elem.GetBinding("Value")
 					?? throw new XamlException("ComboBoxItem. Value binging must be specified");
-                combo.MergeAttribute(":value-prop", $"'{valBind.Path}'");  /*without context!*/
+				combo.MergeAttribute(":value-prop", $"'{valBind.Path}'");  /*without context!*/
 				var boldBind = elem.GetBinding("Bold");
 				if (boldBind != null)
 					combo.MergeAttribute(":bold-prop", $"'{boldBind.Path}'"); /*without context!*/
+				var cssClassBind = elem.GetBinding(nameof(ComboBoxItem.CssClass));
+				if (cssClassBind != null)
+					combo.MergeAttribute(":css-class-prop", $"'{cssClassBind.Path}'"); /*without context!*/
 			}
 		}
 		MergeValue(combo, context);

@@ -5,7 +5,7 @@
 @modal-header-height: 2.4rem;
 @modal-header-line: 1.7rem;
 
-@modal-footer-bg-color: var(--neutral100);
+@modal-footer-bg-color: var(--dialog-footer-bg);
 @modal-border-color: var(--neutralBkDark);
 @modal-header-hover-color: rgba(128,128,128,.15);
 @ani-time: 0.1s;
@@ -44,7 +44,7 @@
 			width: @modal-width-medium;
 			height: auto;
 			background-color: @bk-primary;
-			border-radius:@modal-brd-radius;
+			border-radius: @modal-brd-radius;
 
 			&.with-placement {
 				position: absolute;
@@ -62,6 +62,13 @@
 
 			&.side-bar-right {
 				right: 0;
+				border-radius: @modal-brd-radius 0 0 @modal-brd-radius;
+
+				.button-on-top {
+					.modal-footer {
+						border-radius: @modal-brd-radius 0 0 0;
+					}
+				}
 			}
 
 			&.side-bar-left {
@@ -131,19 +138,28 @@
 	left: 0;
 	top: 0;
 	right: 0;
-	bottom: 0!important; /*disable debug footer*/
+	bottom: 0 !important; /*disable debug footer*/
 	z-index: @modal-wrapper-index;
 	overflow: auto;
 	background-color: transparent;
-	display:flex;
-	align-items:center;
-	justify-content:center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 
 	.modal-window {
 		position: relative;
 		width: @modal-width-medium;
 		height: auto;
 		background-color: white;
+		border-radius: @modal-brd-radius;
+		/* TEMP: Moving doesn't work correctly */
+		.modal-header {
+			cursor:default;
+			pointer-events:none;
+			.btnclose {
+				pointer-events:all;
+			}
+		}
 	}
 }
 
@@ -300,7 +316,7 @@
 		}
 	}
 
-	.grid {
+	> .grid {
 		padding:@grid-modal-padding;
 		gap:@grid-modal-gap;
 	}
@@ -378,5 +394,12 @@
 		&:hover {
 			background-color: @modal-header-hover-color;
 		}
+	}
+}
+
+.edit-item-dialog {
+	padding:1rem;
+	.grid {
+		padding: 0;
 	}
 }

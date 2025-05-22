@@ -1,6 +1,5 @@
 ﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
-
 using A2v10.Infrastructure;
 
 namespace A2v10.Xaml;
@@ -25,7 +24,7 @@ public abstract class UIElementBase : XamlElement, IXamlElement
 
 	public abstract void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null);
 
-	[Flags]
+    [Flags]
 	public enum MergeAttrMode
 	{
 		Visibility = 0x01,
@@ -101,6 +100,10 @@ public abstract class UIElementBase : XamlElement, IXamlElement
             }
             else
 				tag.MergeAttribute($":{attrName}", attrBind.GetPathFormat(context));
+
+			if (attrBind.NegativeRed)
+				tag.MergeAttribute(":class", $"$getNegativeRedClass({attrBind.GetPath(context)})");
+
 		}
 		else if (propValue != null)
 			tag.MergeAttribute(attrName, context.Localize(propValue));

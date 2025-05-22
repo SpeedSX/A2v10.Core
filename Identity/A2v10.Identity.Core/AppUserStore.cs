@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2025 Oleksandr Kukhtin. All rights reserved.
 
 namespace A2v10.Web.Identity;
 
@@ -7,6 +7,8 @@ using System.Dynamic;
 using System.Security.Claims;
 using System.Threading;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Identity;
@@ -14,8 +16,6 @@ using Microsoft.AspNetCore.Identity;
 using A2v10.Data.Interfaces;
 using A2v10.Identity.Core.Helpers;
 
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 
 public sealed class AppUserStore<T>(IDbContext dbContext, IOptions<AppUserStoreOptions<T>> options) :
 	IUserStore<AppUser<T>>,
@@ -52,7 +52,8 @@ public sealed class AppUserStore<T>(IDbContext dbContext, IOptions<AppUserStoreO
 		public const String Expires = nameof(Expires);
 		public const String PhoneNumber = nameof(PhoneNumber);
 		public const String PersonName = nameof(PersonName);
-		public const String FirstName = nameof(FirstName);
+        public const String NickName = nameof(NickName);
+        public const String FirstName = nameof(FirstName);
 		public const String LastName = nameof(LastName);
 		public const String EmailConfirmed = nameof(EmailConfirmed);
 		public const String PhoneNumberConfirmed = nameof(PhoneNumberConfirmed);
@@ -159,9 +160,11 @@ public sealed class AppUserStore<T>(IDbContext dbContext, IOptions<AppUserStoreO
 			prm.Add(ParamNames.Email, user.Email);
 		if (user.Flags.HasFlag(UpdateFlags.PersonName))
 			prm.Add(ParamNames.PersonName, user.PersonName);
-		if (user.Flags.HasFlag(UpdateFlags.FirstName))
-			prm.Add(ParamNames.FirstName, user.FirstName);
-		if (user.Flags.HasFlag(UpdateFlags.LastName))
+		if (user.Flags.HasFlag(UpdateFlags.NickName))
+			prm.Add(ParamNames.NickName, user.NickName);
+        if (user.Flags.HasFlag(UpdateFlags.FirstName))
+            prm.Add(ParamNames.FirstName, user.FirstName);
+        if (user.Flags.HasFlag(UpdateFlags.LastName))
 			prm.Add(ParamNames.LastName, user.LastName);
 		if (user.Flags.HasFlag(UpdateFlags.EmailConfirmed))
 			prm.Add(ParamNames.EmailConfirmed, user.EmailConfirmed);
@@ -320,7 +323,9 @@ public sealed class AppUserStore<T>(IDbContext dbContext, IOptions<AppUserStoreO
 	{
 		//????list.Add(new Claim(WellKnownClaims.NameIdentifier, user.Id.ToString()!));
 		list.Add(new Claim(WellKnownClaims.PersonName, user.PersonName ?? String.Empty));
-		if (!String.IsNullOrEmpty(user.FirstName))
+        if (!String.IsNullOrEmpty(user.NickName))
+            list.Add(new Claim(WellKnownClaims.NickName, user.NickName));
+        if (!String.IsNullOrEmpty(user.FirstName))
 			list.Add(new Claim(WellKnownClaims.FirstName, user.FirstName));
 		if (!String.IsNullOrEmpty(user.LastName))
 			list.Add(new Claim(WellKnownClaims.LastName, user.LastName));
@@ -340,6 +345,8 @@ public sealed class AppUserStore<T>(IDbContext dbContext, IOptions<AppUserStoreO
 			list.Add(new Claim(WellKnownClaims.Branch, user.Branch.ToString()!));
 		if (user.OrganizationKey != null)
 			list.Add(new Claim(WellKnownClaims.OrganizationKey, user.OrganizationKey));
+		if (user.OrganizationTag != null)
+			list.Add(new Claim(WellKnownClaims.OrganizationTag, user.OrganizationTag));
 		if (user.IsPersistent)
 			list.Add(new Claim(WellKnownClaims.IsPersistent, "true"));
 		if (!String.IsNullOrEmpty(user.Roles))
@@ -394,10 +401,13 @@ public sealed class AppUserStore<T>(IDbContext dbContext, IOptions<AppUserStoreO
 			case WellKnownClaims.PersonName:
 				user.PersonName = claim.Value;
 				break;
-			case WellKnownClaims.FirstName:
-				user.FirstName = claim.Value;
+			case WellKnownClaims.NickName:
+				user.NickName = claim.Value;
 				break;
-			case WellKnownClaims.LastName:
+            case WellKnownClaims.FirstName:
+                user.FirstName = claim.Value;
+                break;
+            case WellKnownClaims.LastName:
 				user.LastName = claim.Value;
 				break;
             case WellKnownClaims.Roles:

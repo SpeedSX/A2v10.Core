@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2025 Oleksandr Kukhtin. All rights reserved.
 
 using System.Text;
 
@@ -19,19 +19,23 @@ public class ModelJsonBase : IModelBase
 	public String? Schema { get; init; }
 	public String? Model { get; init; }
 	public ModelJsonAuto? Auto { get; init; }
-	IModelJsonAuto? IModelBase.ModelAuto => Auto;
-	public Boolean Signal { get; init; }
+	IModelJsonAuto? IModelBase.Auto => Auto;
+    IModelBaseMeta? IModelBase.Meta => Meta;
+    public Boolean Signal { get; init; }
 	public List<String>? Roles { get; init; }	
 	public Int32 CommandTimeout { get; init; }
 
+    public ModelBaseMeta? Meta { get; init; }
+    
 	public ExpandoObject? Parameters { get; set; }
 	public Dictionary<String, PermissionBits>? Permissions { get; init; }
 	internal virtual void SetParent(ModelJson rm)
 	{
 		_parent = rm;
-	}
+        Meta?.SetParent(rm.Meta);
+    }
 
-	public Boolean CheckRoles(IEnumerable<String>? roles)
+    public Boolean CheckRoles(IEnumerable<String>? roles)
 	{
 		if (CurrentRoles == null) 
 			return true;
@@ -77,7 +81,7 @@ public class ModelJsonBase : IModelBase
     public String Path => Parent.LocalPath;
 	public String BaseUrl => Parent.BaseUrl;
 
-	public virtual ExpandoObject CreateParameters(IPlatformUrl url, Object? id,  Action<ExpandoObject>? setParams = null, IModelBase.ParametersFlags flags = IModelBase.ParametersFlags.None)
+    public virtual ExpandoObject CreateParameters(IPlatformUrl url, Object? id,  Action<ExpandoObject>? setParams = null, IModelBase.ParametersFlags flags = IModelBase.ParametersFlags.None)
 	{
 		// model.json, query, id, system
 		var eo = new ExpandoObject();
@@ -128,6 +132,7 @@ public class ModelJsonViewBase : ModelJsonBase
 	{
 		base.SetParent(rm);
 		Merge?.SetParent(rm);
+		Meta?.SetParent(rm.Meta);	
 	}
 }
 
@@ -404,6 +409,51 @@ public class ModelJsonReport : ModelJsonBase, IModelReport
 	}
 }
 
+public class DatabaseMeta : IModelJsonMeta
+{
+	public String Table { get; set; } = default!;
+
+    public String Schema => _parent?.Schema ?? throw new InvalidOperationException("schema is null");
+
+	private ModelJson? _parent;
+	public void SetParent(ModelJson? parent)
+	{
+		_parent = parent;	
+	}
+}
+
+public class ModelBaseMeta : IModelBaseMeta
+{
+    public String? Columns { get; init; }
+    public String? Table { get; init; }
+    public String? Schema { get; init; }
+    public MetaEditMode Edit { get; init; }
+
+    IModelJsonMeta? _parent;
+    public void SetParent(IModelJsonMeta? parent)
+    {
+        _parent = parent;
+    }
+	public String CurrentTable => Table ?? _parent?.Table
+		?? throw new InvalidOperationException("Table is null");
+    public String CurrentSchema => Schema ?? _parent?.Schema
+        ?? throw new InvalidOperationException("Schema is null");
+
+    public MetaEditMode EditMode 
+	{ 
+		get 
+		{ 
+			if (Edit != MetaEditMode.Default)
+				return Edit;
+			return CurrentSchema switch {
+				"cat" => MetaEditMode.Dialog,
+				"doc" or "op" => MetaEditMode.Page,
+				_ => throw new InvalidOperationException($"Unknonwn edit mode for {CurrentSchema}")
+			};
+		}
+	}
+}
+
 public class ModelJson
 {
 	private String? _localPath;
@@ -415,7 +465,8 @@ public class ModelJson
 	#region JSON
 	public String? Source { get; init; }
 	public String? Schema { get; init; }
-	public String? Model { get; init; }
+    public DatabaseMeta? Meta { get; init; }
+    public String? Model { get; init; }
 	public List<String>? Roles { get; init; }
 
 	public Dictionary<String, ModelJsonView> Actions { get; init; } = new(StringComparer.OrdinalIgnoreCase);
@@ -434,20 +485,56 @@ public class ModelJson
 	{
 		if (Actions.TryGetValue(key ?? "index", out ModelJsonView? view))
 			return view;
-		return null;
+        if (Meta != null)
+        {
+			var empty = new ModelJsonView()
+			{
+				Index = key == "index",
+				Meta = new ModelBaseMeta()
+			};
+			empty.SetParent(this);
+			return empty;	
+        }
+        return null;
 	}
 
-	public ModelJsonView GetAction(String key)
+    public ModelJsonCommand? TryGetCommand(String key)
+    {
+        if (Commands.TryGetValue(key, out ModelJsonCommand? command))
+            return command;
+        if (Meta != null)
+        {
+            var empty = new ModelJsonCommand()
+            {				
+                Meta = new ModelBaseMeta()
+            };
+            empty.SetParent(this);
+            return empty;
+        }
+        return null;
+    }
+
+    public ModelJsonView GetAction(String key)
 	{
 		var view = TryGetAction(key);
-		return view ?? throw new ModelJsonException($"Action: {key} not found");
+		return view ?? throw new ModelJsonException($"Action {key} not found");
 	}
 
 	public ModelJsonDialog GetDialog(String key)
 	{
 		if (Dialogs.TryGetValue(key, out ModelJsonDialog? view))
 			return view;
-		throw new ModelJsonException($"Dialog: {key} not found");
+		if (Meta != null)
+		{
+			var empty = new ModelJsonDialog()
+			{
+				Index = key.StartsWith("browse"),
+				Meta = new ModelBaseMeta()
+			};
+            empty.SetParent(this);
+            return empty;
+        }
+        throw new ModelJsonException($"Dialog: {key} not found");
 	}
 
 	public ModelJsonReport GetReport(String key)
@@ -458,10 +545,9 @@ public class ModelJson
 	}
 
 	public ModelJsonCommand GetCommand(String key)
-	{
-		if (Commands.TryGetValue(key, out ModelJsonCommand? command))
-			return command;
-		throw new ModelJsonException($"Command: {key} not found");
+    {
+		var command = TryGetCommand(key);
+        return command ?? throw new ModelJsonException($"Command {key} not found");
 	}
 
 	public ModelJsonBlob GetBlob(String key, String? suffix = null)
@@ -509,6 +595,7 @@ public class ModelJson
 			c.SetParent(this);
 		foreach (var (_, r) in Reports)
 			r.SetParent(this);
+		Meta?.SetParent(this);
 	}
 }
 

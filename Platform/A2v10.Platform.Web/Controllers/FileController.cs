@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2025 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Threading.Tasks;
@@ -30,6 +30,7 @@ public class FileController(IApplicationHost host,
 	[HttpGet]
 	public async Task<IActionResult> DefaultGet(String pathInfo)
 	{
+
 		try
 		{
 			var blob = await _dataService.LoadBlobAsync(UrlKind.File, pathInfo, (prms) =>
@@ -47,9 +48,12 @@ public class FileController(IApplicationHost host,
 			var ar = new WebBinaryActionResult(blob.Stream, blob.Mime ?? MimeTypes.Text.Plain);
 			if (Request.Query["export"].Count > 0)
 			{
+				var fileName = _localizer.Localize(null, blob.Name) ?? "file";
+				if (!fileName.Contains('.'))
+					fileName += MimeTypes.GetExtension(blob.Mime);
 				var cdh = new ContentDispositionHeaderValue("attachment")
 				{
-					FileNameStar = _localizer.Localize(null, blob.Name)
+					FileNameStar = fileName
 				};
 				ar.AddHeader("Content-Disposition", cdh.ToString());
 			}

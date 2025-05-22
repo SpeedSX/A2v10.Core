@@ -17,6 +17,8 @@ del /q Platform\A2v10.Services\bin\Release\*.snupkg
 del /q Platform\A2v10.Services\bin\Release\*.nupkg
 del /q Platform\A2v10.AppRuntimeBuilder\bin\Release\*.snupkg
 del /q Platform\A2v10.AppRuntimeBuilder\bin\Release\*.nupkg
+del /q Platform\A2v10.Metadata\bin\Release\*.snupkg
+del /q Platform\A2v10.Metadata\bin\Release\*.nupkg
 
 del /q ViewEngines\A2v10.ViewEngine.Xaml\bin\Release\*.nupkg
 del /q ViewEngines\A2v10.ViewEngine.Xaml\bin\Release\*.snupkg
@@ -49,6 +51,8 @@ del /q Extensions\A2v10.Scheduling.Infrastructure\bin\Release\*.snupkg
 
 del /q BlobStorages\AzureBlobStorage\bin\Release\*.nupkg
 del /q BlobStorages\AzureBlobStorage\bin\Release\*.snupkg
+del /q BlobStorages\FileSystemBlobStorage\bin\Release\*.nupkg
+del /q BlobStorages\FileSystemBlobStorage\bin\Release\*.snupkg
 
 dotnet pack -c Release
 
@@ -80,6 +84,9 @@ copy Platform\A2v10.Services\bin\Release\*.snupkg ..\NuGet.local
 
 copy Platform\A2v10.AppRuntimeBuilder\bin\Release\*.nupkg ..\NuGet.local
 copy Platform\A2v10.AppRuntimeBuilder\bin\Release\*.snupkg ..\NuGet.local
+
+copy Platform\A2v10.Metadata\bin\Release\*.nupkg ..\NuGet.local
+copy Platform\A2v10.Metadata\bin\Release\*.snupkg ..\NuGet.local
 
 copy ViewEngines\A2v10.ViewEngine.Xaml\bin\Release\*.nupkg ..\NuGet.local
 copy ViewEngines\A2v10.ViewEngine.Xaml\bin\Release\*.snupkg ..\NuGet.local
@@ -119,7 +126,8 @@ copy Extensions\A2v10.Scheduling.Infrastructure\bin\Release\*.snupkg ..\NuGet.lo
 
 copy BlobStorages\AzureBlobStorage\bin\Release\*.nupkg ..\NuGet.local
 copy BlobStorages\AzureBlobStorage\bin\Release\*.snupkg ..\NuGet.local
-
+copy BlobStorages\FileSystemBlobStorage\bin\Release\*.nupkg ..\NuGet.local
+copy BlobStorages\FileSystemBlobStorage\bin\Release\*.snupkg ..\NuGet.local
 
 
 pause

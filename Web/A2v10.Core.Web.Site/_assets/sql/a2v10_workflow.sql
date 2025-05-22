@@ -1,13 +1,16 @@
 ﻿/*
-Copyright © 2020-2023 Alex Kukhtin
+Copyright © 2020-2025 Oleksandr Kukhtin
 
-Last updated : 23 jul 2023
-module version : 8105
+Last updated : 31 mar 2025
+module version : 8212 !!! TODO
 */
 ------------------------------------------------
 set nocount on;
 if not exists(select * from INFORMATION_SCHEMA.SCHEMATA where SCHEMA_NAME=N'a2wf')
-	exec sp_executesql N'create schema a2wf';
+	exec sp_executesql N'create schema a2wf authorization dbo';
+go
+------------------------------------------------
+alter authorization on schema::a2wf to dbo;
 go
 ------------------------------------------------
 grant execute on schema ::a2wf to public;
@@ -25,7 +28,7 @@ go
 begin
 	set nocount on;
 	declare @version int;
-	set @version = 8091;
+	set @version = 8212;
 	if exists(select * from a2wf.Versions where Module = N'main')
 		update a2wf.Versions set [Version] = @version where Module = N'main';
 	else
@@ -53,9 +56,21 @@ create table a2wf.[Catalog]
 	[Thumb] varbinary(max) null,
 	ThumbFormat nvarchar(32) null,
 	[Hash] varbinary(64) null,
-	DateCreated datetime not null constraint DF_Catalog_DateCreated default(getutcdate()),
+	DateCreated datetime not null 
+		constraint DF_Catalog_DateCreated default(getutcdate()),
+	[Name] nvarchar(255),
+	[Memo] nvarchar(255),
+	[Svg] nvarchar(max),
 	constraint PK_Catalog primary key clustered (Id)
 );
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2wf' and TABLE_NAME = N'Catalog' and COLUMN_NAME = N'Name')
+begin
+	alter table a2wf.[Catalog] add [Name] nvarchar(255);
+	alter table a2wf.[Catalog] add [Memo] nvarchar(255);
+	alter table a2wf.[Catalog] add [Svg] nvarchar(max);
+end
 go
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2wf' and TABLE_NAME=N'Workflows')
@@ -63,11 +78,33 @@ create table a2wf.Workflows
 (
 	[Id] nvarchar(255) not null,
 	[Version] int not null,
+	[Name] nvarchar(255),
 	[Format] nvarchar(32) not null,
 	[Text] nvarchar(max) null,
 	[Hash] varbinary(64) null,
+	[Svg] nvarchar(max) null,
 	DateCreated datetime not null constraint DF_Workflows_DateCreated default(getutcdate()),
 	constraint PK_Workflows primary key clustered (Id, [Version]) with (fillfactor = 70)
+);
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2wf' and TABLE_NAME = N'Workflows' and COLUMN_NAME = N'Name')
+	alter table a2wf.Workflows add [Name] nvarchar(255);
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = N'a2wf' and TABLE_NAME = N'Workflows' and COLUMN_NAME = N'Svg')
+	alter table a2wf.Workflows add [Svg] nvarchar(max) null;
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2wf' and TABLE_NAME=N'WorkflowArguments')
+create table a2wf.WorkflowArguments
+(
+	[WorkflowId] nvarchar(255) not null,
+	[Version] int not null,
+	[Name] nvarchar(255) not null,
+	[Type] nvarchar(255) null,
+	[Value] nvarchar(255) null,
+	constraint FK_WorkflowArguments_WorkflowId_Version_Workflows foreign key (WorkflowId, [Version]) references a2wf.Workflows(Id, [Version])
 );
 go
 ------------------------------------------------
@@ -208,12 +245,24 @@ create table a2wf.[AutoStart]
 	Lock uniqueidentifier null,
 	DateCreated datetime not null constraint DF_AutoStart_DateCreated default(getutcdate()),
 	InstanceId uniqueidentifier null,
-	DateStarted datetime null
+	DateStarted datetime null,
+	CorrelationId nvarchar(255) null,
+	Complete int not null
+		constraint DF_AutoStart_Complete default(0)
 );
 go
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=N'a2wf' and TABLE_NAME=N'AutoStart' and COLUMN_NAME=N'StartAt')
 	alter table a2wf.AutoStart add StartAt datetime null;
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=N'a2wf' and TABLE_NAME=N'AutoStart' and COLUMN_NAME=N'CorrelationId')
+	alter table a2wf.AutoStart add CorrelationId nvarchar(255) null;
+go
+------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA=N'a2wf' and TABLE_NAME=N'AutoStart' and COLUMN_NAME=N'Complete')
+	alter table a2wf.AutoStart add Complete int not null 
+		constraint DF_AutoStart_Complete default(0) with values;
 go
 ------------------------------------------------
 create or alter procedure a2wf.[Catalog.Save]
@@ -263,9 +312,9 @@ begin
 		else
 		begin
 			declare @retval table(Id nvarchar(255), [Version] int);
-			insert into a2wf.Workflows (Id, [Format], [Text], [Hash], [Version])
+			insert into a2wf.Workflows (Id, [Format], [Text], [Hash], [Name], Svg, [Version])
 			output inserted.Id, inserted.[Version] into @retval(Id, [Version])
-			select Id, [Format], [Body], [Hash], [Version] = 
+			select Id, [Format], [Body], [Hash], [Name], Svg, [Version] = 
 				(select isnull(max([Version]) + 1, 1) from a2wf.Workflows where Id=@Id)
 			from a2wf.[Catalog] where Id=@Id;
 			select Id, [Version] from @retval;
@@ -287,6 +336,40 @@ begin
 end
 go
 ------------------------------------------------
+drop procedure if exists a2wf.[Workflow.SetArguments];
+drop type if exists a2wf.[Workflow.Arguments.TableType];
+go
+------------------------------------------------
+create type a2wf.[Workflow.Arguments.TableType] as table(
+	[Name] nvarchar(255),
+	[Type] nvarchar(255),
+	[Value] nvarchar(255)
+)
+go
+------------------------------------------------
+create or alter procedure a2wf.[Workflow.SetArguments]
+@Id nvarchar(255),
+@Version int = 0,
+@Rows a2wf.[Workflow.Arguments.TableType] readonly
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+	set xact_abort on;
+
+	merge a2wf.WorkflowArguments as t
+	using @Rows as s
+	on t.WorkflowId = @Id and t.[Version] = @Version and t.[Name] = s.[Name]
+	when matched then update set
+		t.[Type] = s.[Type],
+		t.[Value] = s.[Value]
+	when not matched then insert 
+		(WorkflowId, [Version], [Name], [Type], [Value]) values
+		(@Id, @Version, s.[Name], s.[Type], s.[Value])
+	when not matched by source and t.WorkflowId = @Id and t.[Version] = @Version then delete;
+end
+go
+------------------------------------------------
 create or alter procedure a2wf.[Workflow.Load]
 @UserId bigint = null,
 @Id nvarchar(255),
@@ -300,6 +383,19 @@ begin
 	from a2wf.Workflows
 	where Id=@Id and (@Version=0 or [Version]=@Version)
 	order by [Version] desc;
+end
+go
+------------------------------------------------
+create or alter procedure a2wf.[Catalog.Load]
+@UserId bigint = null,
+@Id nvarchar(64)
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+
+	select c.Body, c.[Format]
+	from a2wf.[Catalog] c where Id = @Id;
 end
 go
 ------------------------------------------------
@@ -378,10 +474,7 @@ end
 go
 ------------------------------------------------
 drop procedure if exists a2wf.[Instance.Update];
-go
-------------------------------------------------
-if exists(select * from INFORMATION_SCHEMA.DOMAINS where DOMAIN_SCHEMA = N'a2wf' and DOMAIN_NAME = N'Instance.TableType')
-	drop type a2wf.[Instance.TableType]
+drop type if exists a2wf.[Instance.TableType]
 go
 ------------------------------------------------
 create type a2wf.[Instance.TableType] as table
@@ -396,8 +489,7 @@ create type a2wf.[Instance.TableType] as table
 )
 go
 ------------------------------------------------
-if exists(select * from INFORMATION_SCHEMA.DOMAINS where DOMAIN_SCHEMA = N'a2wf' and DOMAIN_NAME = N'Variables.TableType')
-	drop type a2wf.[Variables.TableType]
+drop type if exists a2wf.[Variables.TableType];
 go
 ------------------------------------------------
 create type a2wf.[Variables.TableType] as table
@@ -407,8 +499,7 @@ create type a2wf.[Variables.TableType] as table
 )
 go
 ------------------------------------------------
-if exists(select * from INFORMATION_SCHEMA.DOMAINS where DOMAIN_SCHEMA = N'a2wf' and DOMAIN_NAME = N'VariableInt.TableType')
-	drop type a2wf.[VariableInt.TableType]
+drop type if exists a2wf.[VariableInt.TableType]
 go
 ------------------------------------------------
 create type a2wf.[VariableInt.TableType] as table
@@ -419,8 +510,7 @@ create type a2wf.[VariableInt.TableType] as table
 )
 go
 ------------------------------------------------
-if exists(select * from INFORMATION_SCHEMA.DOMAINS where DOMAIN_SCHEMA = N'a2wf' and DOMAIN_NAME = N'VariableGuid.TableType')
-	drop type a2wf.[VariableGuid.TableType]
+drop type if exists a2wf.[VariableGuid.TableType]
 go
 ------------------------------------------------
 create type a2wf.[VariableGuid.TableType] as table
@@ -431,8 +521,7 @@ create type a2wf.[VariableGuid.TableType] as table
 )
 go
 ------------------------------------------------
-if exists(select * from INFORMATION_SCHEMA.DOMAINS where DOMAIN_SCHEMA = N'a2wf' and DOMAIN_NAME = N'VariableString.TableType')
-	drop type a2wf.[VariableString.TableType]
+drop type if exists a2wf.[VariableString.TableType];
 go
 ------------------------------------------------
 create type a2wf.[VariableString.TableType] as table
@@ -443,8 +532,7 @@ create type a2wf.[VariableString.TableType] as table
 )
 go
 ------------------------------------------------
-if exists(select * from INFORMATION_SCHEMA.DOMAINS where DOMAIN_SCHEMA = N'a2wf' and DOMAIN_NAME = N'InstanceBookmarks.TableType')
-	drop type a2wf.[InstanceBookmarks.TableType]
+drop type if exists a2wf.[InstanceBookmarks.TableType];
 go
 ------------------------------------------------
 create type a2wf.[InstanceBookmarks.TableType] as table
@@ -454,8 +542,7 @@ create type a2wf.[InstanceBookmarks.TableType] as table
 )
 go
 ------------------------------------------------
-if exists(select * from INFORMATION_SCHEMA.DOMAINS where DOMAIN_SCHEMA = N'a2wf' and DOMAIN_NAME = N'InstanceTrack.TableType')
-	drop type a2wf.[InstanceTrack.TableType]
+drop type if exists a2wf.[InstanceTrack.TableType]
 go
 ------------------------------------------------
 create type a2wf.[InstanceTrack.TableType] as table
@@ -470,8 +557,7 @@ create type a2wf.[InstanceTrack.TableType] as table
 )
 go
 ------------------------------------------------
-if exists(select * from INFORMATION_SCHEMA.DOMAINS where DOMAIN_SCHEMA = N'a2wf' and DOMAIN_NAME = N'InstanceEvent.TableType')
-	drop type a2wf.[InstanceEvent.TableType]
+drop type if exists a2wf.[InstanceEvent.TableType]
 go
 ------------------------------------------------
 create type a2wf.[InstanceEvent.TableType] as table
@@ -718,11 +804,11 @@ begin
 	declare @AutoStartTable table(Id bigint);
 	update a2wf.AutoStart set Lock = newid() 
 	output inserted.Id into @AutoStartTable(Id)
-	where Lock is null and InstanceId is null and DateStarted is null and 
+	where Lock is null and Complete = 0 and DateStarted is null and 
 		(StartAt is null or StartAt <= @now);
 
 	select [AutoStart!TAutoStart!Array] = null, [Id!!Id]= a.Id,  
-		WorkflowId, [Version], [Params!!Json] = Params
+		WorkflowId, [Version], [Params!!Json] = Params, CorrelationId, a.InstanceId
 	from @AutoStartTable t inner join a2wf.AutoStart a on t.Id = a.Id
 	order by a.DateCreated;
 end
@@ -732,14 +818,16 @@ create or alter procedure a2wf.[AutoStart.Create]
 @WorkflowId nvarchar(255),
 @Version int = 0,
 @Params nvarchar(max) = null,
-@StartAt datetime = null
+@StartAt datetime = null,
+@CorrelationId nvarchar(255) = null,
+@InstanceId uniqueidentifier = null
 as
 begin
 	set nocount on;
 	set transaction isolation level read committed;
 
-	insert into a2wf.AutoStart(WorkflowId, [Version], [Params], StartAt) 
-	values (@WorkflowId, @Version, @Params, @StartAt);
+	insert into a2wf.AutoStart(WorkflowId, [Version], [Params], StartAt, CorrelationId, InstanceId) 
+	values (@WorkflowId, @Version, @Params, @StartAt, @CorrelationId, @InstanceId);
 end
 go
 ------------------------------------------------
@@ -750,7 +838,7 @@ as
 begin
 	set nocount on;
 	set transaction isolation level read committed;
-	update a2wf.AutoStart set InstanceId = @InstanceId, DateStarted = getutcdate() 
+	update a2wf.AutoStart set InstanceId = @InstanceId, DateStarted = getutcdate(), Complete = 1
 	where Id=@Id;
 end
 go
@@ -784,6 +872,31 @@ begin
 	update a2wf.CurrentDate set [Date] = @Date;
 end
 go
+
+-- service procedures
+------------------------------------------------
+create or alter procedure a2wf.[Instance.Delete]
+@TenantId int = 1,
+@UserId bigint,
+@Id uniqueidentifier = null
+as
+begin
+	set nocount on;
+	set transaction isolation level read committed;
+	set xact_abort on;
+
+	begin tran;
+	delete from a2wf.InstanceEvents where InstanceId = @Id;
+	delete from a2wf.InstanceTrack where InstanceId = @Id;
+	delete from a2wf.InstanceBookmarks where InstanceId = @Id;
+	delete from a2wf.InstanceVariablesGuid where InstanceId = @Id;
+	delete from a2wf.InstanceVariablesString where InstanceId = @Id;
+	delete from a2wf.InstanceVariablesInt where InstanceId = @Id;
+	delete from a2wf.Instances where Id = @Id;
+	commit tran;
+end
+go
+
 /*
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA=N'a2wf' and TABLE_NAME=N'Inbox')
@@ -791,7 +904,8 @@ begin
 	create table a2wf.[Inbox]
 	(
 		Id uniqueidentifier not null,
-		InstanceId uniqueidentifier not null,
+		InstanceId uniqueidentifier not null
+			constraint FK_Inbox_InstanceId_Instances foreign key references a2wf.Instances(Id),
 		Bookmark nvarchar(255) not null,
 		DateCreated datetime not null
 			constraint DF_Inbox_DateCreated default(getutcdate()),

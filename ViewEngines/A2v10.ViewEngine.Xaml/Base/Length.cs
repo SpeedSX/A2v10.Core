@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2025 Oleksandr Kukhtin. All rights reserved.
 
 using System.ComponentModel;
 using System.Globalization;
@@ -51,7 +51,15 @@ public record Length
 				strVal.EndsWith("rem"));
 	}
 
-	public static Length FromString(String strVal)
+	public static Length? FromStringNull(String? strVal)
+	{
+		if (String.IsNullOrWhiteSpace(strVal))
+			return null;
+		return FromString(strVal);
+	}
+
+
+    public static Length FromString(String strVal)
 	{
 		strVal = strVal.Trim();
 		if (strVal == "Auto")
@@ -96,8 +104,10 @@ public record GridLength
 
 	public static GridLength FromString(String strVal)
 	{
-		if (strVal == "Auto")
+		if (strVal.Equals("Auto", StringComparison.OrdinalIgnoreCase))
 			return new GridLength("auto");
+		else if (strVal.EndsWith("fr"))
+			return new GridLength(strVal);
 		else if (strVal.StartsWith("MinMax"))
 		{
 			var pattern = @"MinMax\(([\w\.]+[%\*\.]?);([\w\.]+[%\*\.]?)\)";
@@ -108,7 +118,16 @@ public record GridLength
 			GridLength gl2 = GridLength.FromString(match.Groups[2].Value);
 			return new GridLength($"minmax({gl1},{gl2})");
 		}
-		else if (Length.IsValidLength(strVal))
+		else if (strVal.StartsWith("Repeat")) {
+            var pattern = @"Repeat\((\d?);([\w\.]+[%\*\.]?)\)";
+            var match = Regex.Match(strVal.Replace(" ", String.Empty), pattern);
+            if (match.Groups.Count != 3)
+                throw new XamlException($"Invalid grid length value '{strVal}'");
+			int count = Int32.Parse(match.Groups[1].Value);
+            GridLength gl = GridLength.FromString(match.Groups[2].Value);
+			return new GridLength($"repeat({count}, {gl.Value})");
+        }
+        else if (Length.IsValidLength(strVal))
 			return new GridLength() { Value = strVal };
 		if (strVal.EndsWith('*'))
 			return new GridLength(strVal.Trim().Replace("*", "fr"));

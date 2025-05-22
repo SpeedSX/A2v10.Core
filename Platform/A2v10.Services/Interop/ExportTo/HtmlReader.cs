@@ -64,6 +64,7 @@ internal partial class HtmlReader(IFormatProvider currentFormat)
 		return sheet;
 	}
 
+	// TODO: DELETE THIS AFTER REWRITED CLIENT CODE;
 	const String COL_PATTERN = "<col ([\\w=\"\\s:%;-]+)>";
 #if NET7_0_OR_GREATER
 	[GeneratedRegex(COL_PATTERN, RegexOptions.None, "en-US")]

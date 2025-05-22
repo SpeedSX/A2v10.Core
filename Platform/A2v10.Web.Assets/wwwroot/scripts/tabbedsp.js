@@ -92,9 +92,9 @@ app.modules['std:signalR'] = function () {
 		}
 	});
 })();
-// Copyright © 2023 Oleksandr Kukhtin. All rights reserved.
+// Copyright © 2023-2024 Oleksandr Kukhtin. All rights reserved.
 
-/*20230901-8147*/
+/*20240807-8333*/
 /* tabbed:navbar.js */
 (function () {
 
@@ -160,10 +160,6 @@ app.modules['std:signalR'] = function () {
 				eventBus.$emit('closeAllPopups');
 				const shell = this.$parent;
 				this.activeMenu = null;
-				if (url.endsWith('{genrandom}')) {
-					let randomString = Math.random().toString(36).substring(2);
-					url = url.replace('{genrandom}', randomString);
-				}
 				if (url.startsWith("page:"))
 					shell.$emit('navigate', { title: title, url: url.substring(5) });
 				else if (url.startsWith("dialog:")) {
@@ -509,7 +505,7 @@ app.modules['std:signalR'] = function () {
 				window.__requestsCount__ = this.requestsCount;
 			});
 			eventBus.$on('checkVersion', (ver) => {
-				if (ver && this.appData && ver !== this.appData.version)
+				if (ver && this.appData && (ver.app !== this.appData.version || ver.module !== this.appData.moduleVersion))
 					this.newVersionAvailable = true;
 			});
 
@@ -527,6 +523,7 @@ app.modules['std:signalR'] = function () {
 })();
 
 // Copyright © 2024 Oleksandr Kukhtin. All rights reserved.
+
 (function () {
 
 	const TODAY_COLOR = "#fffff080"; // sync with LESS!
@@ -546,6 +543,7 @@ app.modules['std:signalR'] = function () {
 		<button class="btn btn-tb btn-icon" @click="nextPart(-1)"><i class="ico ico-arrow-left"></i></button>
 		<button class="btn btn-tb btn-icon" @click="nextPart(1)"><i class="ico ico-arrow-right"></i></button>
 		<button class="btn btn-tb btn-icon" @click="todayPart"><i class="ico ico-calendar-today"></i> <span v-text="locale.$Today"></span></button>
+		<slot name="leftbar"></slot>
 	</div>
 	<div class="title">
 		<span v-text=topTitle></span>

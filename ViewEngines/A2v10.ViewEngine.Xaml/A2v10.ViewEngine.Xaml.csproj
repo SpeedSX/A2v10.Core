@@ -1,18 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net6.0;net7.0;net8.0</TargetFrameworks>
-		<Version>10.1.8301</Version>
+		<TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+		<Version>10.1.8550</Version>
 		<Nullable>enable</Nullable>
 		<LangVersion>Latest</LangVersion>
 		<AssemblyName>A2v10.Xaml</AssemblyName>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<Product>A2v10</Product>
 		<PackageId>A2v10.ViewEngine.Xaml</PackageId>
-		<Authors>Oleksandr Kukthin</Authors>
-		<Company>Oleksandr Kukthin</Company>
+		<Authors>Oleksandr Kukhtin</Authors>
+		<Company>Oleksandr Kukhtin</Company>
 		<Description>Xaml view engine for A2v10</Description>
-		<Copyright>Copyright © 2015-2024 Oleksandr  Kukhtin. All rights reserved.</Copyright>
+		<Copyright>Copyright © 2015-2025 Oleksandr  Kukhtin. All rights reserved.</Copyright>
 		<RepositoryType>git</RepositoryType>
 		<RepositoryUrl>https://github.com/alex-kukhtin/A2v10.Core</RepositoryUrl>
 		<PackageTags>A2v10 Xaml</PackageTags>
@@ -30,9 +30,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="A2v10.System.Xaml" Version="10.1.8023" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
-		<PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
+		<PackageReference Include="A2v10.System.Xaml" Version="10.1.8027" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.5" />
+		<PackageReference Include="Microsoft.Extensions.Options" Version="9.0.5" />
 	</ItemGroup>
 
 	<PropertyGroup>

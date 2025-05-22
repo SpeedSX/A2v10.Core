@@ -17,9 +17,9 @@ public class Page : XamlElement
 	[JsonIgnore]
 	public Column? Header { get; init; }
 	[JsonIgnore]
-	public Column? Footer { get; init; }
+	public Column? Footer { get; set; }
 
-	public String? FontFamily { get; init; }
+	public String? FontFamily { get; set; }
 	public PageOrientation Orientation { get; set; }
 
 	public override void ApplyStyles(String selector, StyleBag styles)

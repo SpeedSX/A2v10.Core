@@ -1,7 +1,7 @@
-﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2025 Oleksandr Kukhtin. All rights reserved.
 
-using A2v10.Infrastructure;
 using System.Collections.Generic;
+using A2v10.Infrastructure;
 
 namespace A2v10.Xaml;
 
@@ -19,7 +19,8 @@ public enum ColumnRole
 	Id,
 	Number,
 	Date,
-	CheckBox
+	CheckBox,
+	Code
 }
 
 [ContentProperty("Content")]
@@ -34,8 +35,10 @@ public class DataGridColumn : XamlElement
 	public Command? Command { get; set; }
 	public ColumnControlType ControlType { get; set; }
 	public Object? Mark { get; set; }
-	public Length? Width { get; set; }
-	public Icon Icon { get; set; }
+    public Object? Done { get; set; }
+    public Length? Width { get; set; }
+    public Length? MinWidth { get; set; }
+    public Icon Icon { get; set; }
 	public WrapMode Wrap { get; set; }
 	public Boolean? Sort { get; set; }
 	public String? SortProperty { get; set; }
@@ -45,7 +48,9 @@ public class DataGridColumn : XamlElement
 	public ColumnRole Role { get; set; }
 	public Int32 MaxChars { get; set; }
 	public Int32 LineClamp { get; set; }
-	public String? CheckAll { get; set; }
+    public String? CssClass { get; set; }
+    public String? CheckAll { get; set; }
+	public ColumnBackgroundStyle Background { get; set; }
 
 	Boolean _noPadding;
 
@@ -65,16 +70,18 @@ public class DataGridColumn : XamlElement
 			column.MergeAttribute(":no-padding", "true");
 		if (Sort != null)
 			column.MergeAttribute(":sort", Sort.Value.ToString().ToLowerInvariant());
-		if (SortProperty != null)
-			column.MergeAttribute("sort-prop", SortProperty);
 		if (Small != null)
 			column.MergeAttribute(":small", Small.Value.ToString().ToLowerInvariant());
 		if (MaxChars != 0)
 			column.MergeAttribute(":max-chars", MaxChars);
 		if (LineClamp != 0)
 			column.MergeAttribute(":line-clamp", LineClamp);
+		if (Background != ColumnBackgroundStyle.None)
+            column.MergeAttribute("back-color", Background.ToString().ToLowerInvariant());
+        if (!String.IsNullOrEmpty(CssClass))
+            column.MergeAttribute("col-css-class", CssClass);
 
-		var checkAllBind = GetBinding(nameof(CheckAll));
+        var checkAllBind = GetBinding(nameof(CheckAll));
 		if (checkAllBind != null)
 			column.MergeAttribute("check-all", checkAllBind.Path);
 		else if (CheckAll != null)
@@ -89,7 +96,9 @@ public class DataGridColumn : XamlElement
 		MergeBoolAttribute(column, context, nameof(Fit), Fit);
 		if (Width != null)
 			column.MergeAttribute("width", Width.Value);
-		var iconBind = GetBinding(nameof(Icon));
+        if (MinWidth != null)
+            column.MergeAttribute("min-width", MinWidth.Value);
+        var iconBind = GetBinding(nameof(Icon));
 		if (iconBind != null)
 			column.MergeAttribute("bind-icon", iconBind.Path /*without context*/);
 		else if (Icon != Icon.NoIcon)
@@ -103,9 +112,19 @@ public class DataGridColumn : XamlElement
 		else if (Mark != null)
 			throw new XamlException("The Mark property must be a binding");
 
-		CreateEditable();
+        var doneBind = GetBinding(nameof(Done));
+        if (doneBind != null)
+            column.MergeAttribute("done", doneBind.Path /*!without context!*/);
+        else if (Done != null)
+            throw new XamlException("The Done property must be a binding");
 
-		Boolean isTemplate = Content is UIElementBase;
+        CreateEditable();
+
+		// after create editable!!!
+        if (SortProperty != null)
+            column.MergeAttribute("sort-prop", SortProperty);
+
+        Boolean isTemplate = Content is UIElementBase;
 		String? tmlId = null;
 		if (!isTemplate)
 		{
@@ -186,7 +205,12 @@ public class DataGridColumn : XamlElement
 				column.MergeAttribute("wrap", "no-wrap", true);
 				column.MergeAttribute("align", "right", true);
 				break;
-			case ColumnRole.Date:
+            case ColumnRole.Code:
+                // fit, nowrap
+                column.MergeAttribute(":fit", "true", true);
+                column.MergeAttribute("wrap", "no-wrap", true);
+                break;
+            case ColumnRole.Date:
 				// fit, nowrap, center
 				column.MergeAttribute(":fit", "true", true);
 				column.MergeAttribute("wrap", "no-wrap", true);
@@ -207,11 +231,14 @@ public class DataGridColumn : XamlElement
 		void CreateCheckBox()
 		{
 			var checkBox = new CheckBox();
-			checkBox.SetBinding("Value", GetBinding("Content"));
+			var bind = GetBinding(nameof(Content));
+            checkBox.SetBinding("Value", bind);
 			if (!Editable)
 				checkBox.Disabled = true;
 			Content = checkBox;
-		}
+			if (String.IsNullOrEmpty(SortProperty) && bind?.Path != "$checked")
+				SortProperty = bind?.Path;
+        }
         
 		switch (ControlType)
 		{
@@ -263,8 +290,5 @@ public class DataGridColumn : XamlElement
 
 public class DataGridColumnCollection : List<DataGridColumn>
 {
-	public DataGridColumnCollection()
-	{
-
-	}
+	public DataGridColumnCollection() {}
 }

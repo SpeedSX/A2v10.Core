@@ -1,8 +1,8 @@
 /*
-Copyright © 2008-2024 Oleksandr Kukhtin
+Copyright © 2008-2025 Oleksandr Kukhtin
 
-Last updated : 17 mar 2024
-module version : 8267
+Last updated : 13 may 2025
+module version : 8268
 */
 ------------------------------------------------
 if not exists(select * from INFORMATION_SCHEMA.SCHEMATA where SCHEMA_NAME=N'a2sys')
@@ -181,6 +181,16 @@ create table a2security.RefreshTokens
 );
 go
 ------------------------------------------------
+if not exists(select * from INFORMATION_SCHEMA.TABLES where [TABLE_SCHEMA] = N'a2security' and TABLE_NAME = N'KeyVaults')
+create table a2security.[KeyVaults]
+(
+	[Key] nvarchar(255) not null
+		constraint PK_KeyVaults primary key,	
+	[Value] nvarchar(max),
+	[Expired] datetime null
+)
+go
+------------------------------------------------
 create or alter view a2security.ViewUsers
 as
 	select Id, UserName, DomainUser, PasswordHash, SecurityStamp, Email, PhoneNumber,
@@ -333,8 +343,8 @@ go
 /*
 Copyright © 2008-2024 Oleksandr Kukhtin
 
-Last updated : 08 jun 2024
-module version : 8301
+Last updated : 23 aug 2024
+module version : 8339
 */
 ------------------------------------------------
 drop procedure if exists a2ui.[Menu.Merge];
@@ -355,7 +365,6 @@ create type a2ui.[Menu.TableType] as table
 	IsDevelopment bit
 );
 go
-
 ------------------------------------------------
 create or alter procedure a2ui.[Menu.Merge]
 @TenantId int,
@@ -381,14 +390,14 @@ begin
 		t.[Order] = s.[Order],
 		t.ClassName = s.ClassName,
 		t.CreateUrl= s.CreateUrl,
-		t.CreateName = s.CreateName
-	when not matched by target then insert(Module, Tenant, Id, Parent, [Name], [Url], Icon, [Order], ClassName, CreateUrl, CreateName) values 
-		(@ModuleId, @TenantId, Id, Parent, [Name], [Url], Icon, [Order], ClassName, CreateUrl, CreateName)
+		t.CreateName = s.CreateName,
+		t.IsDevelopment = isnull(s.IsDevelopment, 0)
+	when not matched by target then insert(Module, Tenant, Id, Parent, [Name], [Url], Icon, [Order], ClassName, CreateUrl, CreateName, IsDevelopment) values 
+		(@ModuleId, @TenantId, Id, Parent, [Name], [Url], Icon, [Order], ClassName, CreateUrl, CreateName, isnull(IsDevelopment, 0))
 	when not matched by source and t.Tenant = @TenantId and t.Module = @ModuleId then
 		delete;
 end
 go
-
 ------------------------------------------------
 create or alter procedure a2ui.[Menu.User.Load]
 @TenantId int = 1,
@@ -418,7 +427,7 @@ begin
 		m.[Name], m.Url, m.Icon, m.ClassName, m.CreateUrl, m.CreateName
 	from RT 
 		inner join a2ui.Menu m on m.Tenant = @TenantId and RT.Id=m.Id
-	where IsDevelopment = 0 or IsDevelopment = @isDevelopment
+	where IsDevelopment = 0 or IsDevelopment is null or IsDevelopment = @isDevelopment
 	order by RT.[Level], m.[Order], RT.[Id];
 
 	-- system parameters
@@ -564,10 +573,10 @@ end
 go
 
 /*
-Copyright © 2008-2023 Oleksandr Kukhtin
+Copyright © 2008-2024 Oleksandr Kukhtin
 
-Last updated : 05 aug 2023
-module version : 8186
+Last updated : 09 sep 2023
+module version : 8342
 */
 
 -- SECURITY SEGMENT
@@ -576,7 +585,9 @@ create or alter procedure a2security.SetTenantId
 @TenantId int
 as
 begin
+	set nocount on;
 	exec sp_set_session_context @key=N'TenantId', @value=@TenantId, @read_only=0;   
+	update a2security.Tenants set TransactionCount = TransactionCount + 1, LastTransactionDate = getutcdate() where Id = @TenantId;
 end
 go
 ------------------------------------------------

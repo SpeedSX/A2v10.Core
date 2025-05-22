@@ -1,11 +1,12 @@
-﻿// Copyright © 2021-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2021-2024 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Linq;
 using System.Collections.Generic;
 
-using A2v10.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+
+using A2v10.Infrastructure;
 
 namespace A2v10.Platform.Web;
 

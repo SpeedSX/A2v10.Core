@@ -15,8 +15,28 @@ public class AppRuntimeBuilder(IServiceProvider _serviceProvider,
 	private readonly SqlModelProcessor _dbProcessor = new(_currentUser, _dbContext);
 	private readonly ModelPageBuilder _modelPageBuilder = new(_serviceProvider);
 	public Boolean IsAutoSupported => true;
+    public Boolean IsMetaSupported => false;
 
-	public async Task<IAppRuntimeResult> RenderAsync(IPlatformUrl platformUrl, IModelView view, bool isReload)
+    public String MetadataScripts(String _) 
+	{ 
+		return String.Empty;
+	}
+    public String MetadataStyles(String _)
+	{
+		return String.Empty;
+	}
+
+    public Task<EndpointTableInfo> ModelInfoFromPathAsync(String path)
+	{
+        throw new NotImplementedException();
+    }
+
+    public Task<IInvokeResult> InvokeAsync(IPlatformUrl platformUrl, String command, IModelCommand cmd, ExpandoObject? prms)
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task<IAppRuntimeResult> RenderAsync(IPlatformUrl platformUrl, IModelView view, bool isReload)
 	{
 		var endpoint = await GetEndpoint(view);
 

@@ -1,0 +1,66 @@
+BLOB STORAGE
+============
+
+1. Если в model.json type="blobStorage", то должен быть указан параметр blobStorage
+Его значения:
+	"FromConfig" - берем название сервиса из ключа BlobStorage:Provider и, само собой
+	сам провайдер должен быть зарегистрирован.
+	остальное - название сервиса
+	Если название - "SqlServer" - то все сохраняем в базе.
+
+Startup.cs
+	services.AddBlobStorages(factory =>
+	{
+		factory.RegisterStorage<AzureBlobStorage>("AzureStorage");
+		factory.RegisterStorage<FileSystemBlobStorage>("FileSystem");
+	});
+
+
+Примеры:
+	"files": {
+		"upload": {
+			"type": "blobStorage",
+			"blobStorage": "FromConfig"
+		}
+	}
+
+	В appsettings.json:
+
+    1. "BlobStorage": {
+        "Provider": "SqlServer"
+    }
+	Ничего не нужно добавлять
+		
+    2. "BlobStorage": {
+        "Provider": "AzureStorage"
+    }
+	должен быть зарегистрирован сервис
+	factory.RegisterStorage<AzureBlobStorage>("AzureStorage");
+	и указана ConnectionStrings.AzureStorage.
+	container используется как часть пути. Если не указан - "default"
+	source - имя ConnectionString, если не указано - "AzureStorage"
+
+    3. "BlobStorage": {
+        "Provider": "FileSystem",
+		"Path": "Путь_на_сервере"
+    }
+	+ должен быть зарегистрирован сервис
+		factory.RegisterStorage<FileSystemBlobStorage>("FileSystem");
+	container используется как часть пути.
+
+3. Остальные значения type в model.json считаем устаревшими.
+
+
+
+
+window.history.replaceState позволяет менять Url без перезагрузки.
+shell.js: this.replaceState(tab) может менять этот URL
+в mounted можем взять window.location.pathname + search 
+и найти/открыть соответствующий tab.
+
+осталось дописать кусок в restoreTabs;
+
+полезности: - можем пересылать урлы, сохрянять в закладках и т.д.
+проблемы: - человек может менять url - будет бардак
+
+

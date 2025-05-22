@@ -1,13 +1,23 @@
-﻿// Copyright © 2022-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2022-2025 Oleksandr Kukhtin. All rights reserved.
+
+using System.Collections.Generic;
 
 namespace A2v10.Xaml;
 
+
+public class SlotDictionary : Dictionary<String, UIElementBase> 
+{ 
+}
+
+[ContentProperty("Slots")]
 public class Component : UIElementBase
 {
 	const String SLOT_ITEM = "__comp__";
 
 	public Object? Scope { get; set; }
 	public String? Name { get; set; }
+
+	public SlotDictionary Slots { get; set; } = [];
 
 	public override void RenderElement(RenderContext context, Action<TagBuilder>? onRender = null)
 	{
@@ -19,12 +29,15 @@ public class Component : UIElementBase
 			?? throw new XamlException($"Component '{Name}' not found");
         if (comp is not UIElementBase compUi)
 			throw new XamlException($"The component '{Name}' is not an UIElement");
+		var savedRendered = context.RenderedComponent;
 		var scopeBind = GetBinding(nameof(Scope));
 		if (scopeBind == null)
 		{
 			compUi.SetParent(this);
 			compUi.IsInGrid = IsInGrid;
-			compUi.RenderElement(context, onRender);
+            context.RenderedComponent = this;
+            compUi.RenderElement(context, onRender);
+			context.RenderedComponent = savedRendered;
 			return;
 		}
 
@@ -39,8 +52,24 @@ public class Component : UIElementBase
 		{
 			compUi.SetParent(this);
 			compUi.IsInGrid = IsInGrid;
-			compUi.RenderElement(context);
-		}
-		tag.RenderEnd(context);
+            context.RenderedComponent = this;
+            compUi.RenderElement(context);
+            context.RenderedComponent = savedRendered;
+        }
+        tag.RenderEnd(context);
 	}
+
+    protected override void OnEndInit()
+    {
+        base.OnEndInit();
+		foreach (var c in Slots.Values)
+			c.SetParent(this);	
+    }
+
+    public override void OnSetStyles(RootContainer root)
+    {
+        base.OnSetStyles(root);
+        foreach (var ch in Slots.Values)
+            ch.OnSetStyles(root);
+    }
 }

@@ -10,7 +10,7 @@ public class Cell : XamlElement
 	public String? Value { get; set; }
 	public UInt32 RowSpan { get; set; }
 	public UInt32 ColSpan { get; set; }
-	public DataType DataType { get; init; }
+	public DataType DataType { get; set; }
 	public String? Style { get; init; }
 	public String? Format { get; init; }	
 	public void ApplyRuntimeStyle(RuntimeStyle style)
@@ -21,6 +21,8 @@ public class Cell : XamlElement
 			rs.Border = style.Border;
 		if (style.Background != null)
 			rs.Background = style.Background;
+		if (style.FontName != null)
+			rs.FontName = style.FontName;
 		if (style.FontSize != null)
 			rs.FontSize = style.FontSize;
 		if (style.Align != null)
@@ -63,6 +65,18 @@ public class Cell : XamlElement
 				break;
 
 		}
+	}
+
+	public void FixRuntimeBorder(Cell source, Char target)
+	{
+		if (RuntimeStyle == null || source.RuntimeStyle == null) 
+			return;
+		if (RuntimeStyle.Border == null || source.RuntimeStyle.Border == null)
+			return;
+		if (target == 'R')
+			RuntimeStyle.Border.Right = source.RuntimeStyle.Border.Right;
+		else if (target == 'B')
+			RuntimeStyle.Border.Bottom = source.RuntimeStyle.Border.Bottom;
 	}
 }
 

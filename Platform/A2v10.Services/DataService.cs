@@ -11,6 +11,7 @@ using Newtonsoft.Json;
 
 using A2v10.Data.Interfaces;
 using A2v10.Services.Interop;
+using Microsoft.Extensions.Configuration;
 
 namespace A2v10.Services;
 
@@ -47,7 +48,7 @@ public class SaveResult : ISaveResult
 
 }
 public partial class DataService(IServiceProvider _serviceProvider, IModelJsonReader _modelReader, IDbContext _dbContext, ICurrentUser _currentUser,
-    ISqlQueryTextProvider _sqlQueryTextProvider, IAppCodeProvider _codeProvider,
+    ISqlQueryTextProvider _sqlQueryTextProvider, IAppCodeProvider _codeProvider, IConfiguration _configuration,
     IExternalDataProvider _externalDataProvider, ILocalizer _localizer, IAppRuntimeBuilder _appRuntimeBuilder) : IDataService
 {
     static PlatformUrl CreatePlatformUrl(UrlKind kind, String baseUrl)
@@ -160,7 +161,7 @@ public partial class DataService(IServiceProvider _serviceProvider, IModelJsonRe
 
 		CheckPermissions(view);
 
-		if (view.ModelAuto != null)
+        if (view.HasMetadata)
 		{
 			var result = await _appRuntimeBuilder.RenderAsync(platformUrl, view, isReload);
 			return new DataLoadResult(result.DataModel, null, result.ActionResult);
@@ -257,7 +258,7 @@ public partial class DataService(IServiceProvider _serviceProvider, IModelJsonRe
 		execPrms.SetNotNull("Id", Id);
 
 		IDataModel? model;
-		if (view.ModelAuto != null)
+		if (view.HasMetadata)
 			model = await _appRuntimeBuilder.ExpandAsync(platformBaseUrl, view, execPrms);
 		else
 			model = await _dbContext.LoadModelAsync(view.DataSource, expandProc, execPrms);
@@ -275,7 +276,7 @@ public partial class DataService(IServiceProvider _serviceProvider, IModelJsonRe
 
 		var deleteProc = view.DeleteProcedure(propertyName);
 
-		if (view.ModelAuto != null)
+		if (view.HasMetadata)
 			await _appRuntimeBuilder.DbRemoveAsync(platformBaseUrl, view, propertyName, execPrms);
 		else
 			await _dbContext.ExecuteExpandoAsync(view.DataSource, deleteProc, execPrms);
@@ -355,7 +356,7 @@ public partial class DataService(IServiceProvider _serviceProvider, IModelJsonRe
 
 		CheckUserState();
 
-		if (view.ModelAuto != null)
+		if (view.HasMetadata)
 		{
 			var saveResult = await _appRuntimeBuilder.SaveAsync(platformBaseUrl, view, data, savePrms);
 			return new SaveResult()
@@ -400,10 +401,14 @@ public partial class DataService(IServiceProvider _serviceProvider, IModelJsonRe
 		var platformBaseUrl = CreatePlatformUrl(baseUrl);
 		var cmd = await _modelReader.GetCommandAsync(platformBaseUrl, command);
 
-		CheckPermissions(cmd);
+        if (cmd.HasMetadata)
+        {
+            return await _appRuntimeBuilder.InvokeAsync(platformBaseUrl, command, cmd, data);
+        }
+
+        CheckPermissions(cmd);
 
 		CheckRoles(cmd);
-
 
 		var prms = cmd.CreateParameters(platformBaseUrl, null, (eo) =>
 			{

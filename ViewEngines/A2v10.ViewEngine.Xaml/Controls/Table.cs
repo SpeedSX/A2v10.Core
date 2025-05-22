@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2025 Oleksandr Kukhtin. All rights reserved.
 
 using A2v10.Infrastructure;
 
@@ -11,7 +11,9 @@ public enum TableBackgroundStyle
 	Yellow,
 	Cyan,
 	Rose,
-	WhiteSmoke
+	WhiteSmoke,
+	White,
+	Primary
 }
 
 public enum CellSpacingMode
@@ -97,10 +99,12 @@ public class Table : Control, ITableControl
 			outTag.RenderStart(context);
 			RenderTable(context, "a2-table sticky", false, false, null);
 			outTag.RenderEnd(context);
+			/*
 			var sb = new TagBuilder("div", "a2-sticky-bottom");
 			if (Width != null)
 				sb.MergeStyle("width", Width.Value);
 			sb.Render(context);
+			*/
 		}
 		else
 		{

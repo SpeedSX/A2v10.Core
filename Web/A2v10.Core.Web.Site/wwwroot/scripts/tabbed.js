@@ -92,9 +92,9 @@ app.modules['std:signalR'] = function () {
 		}
 	});
 })();
-// Copyright © 2023 Oleksandr Kukhtin. All rights reserved.
+// Copyright © 2023-2024 Oleksandr Kukhtin. All rights reserved.
 
-/*20230901-8147*/
+/*20240807-8333*/
 /* tabbed:navbar.js */
 (function () {
 
@@ -160,10 +160,6 @@ app.modules['std:signalR'] = function () {
 				eventBus.$emit('closeAllPopups');
 				const shell = this.$parent;
 				this.activeMenu = null;
-				if (url.endsWith('{genrandom}')) {
-					let randomString = Math.random().toString(36).substring(2);
-					url = url.replace('{genrandom}', randomString);
-				}
 				if (url.startsWith("page:"))
 					shell.$emit('navigate', { title: title, url: url.substring(5) });
 				else if (url.startsWith("dialog:")) {
@@ -189,9 +185,9 @@ app.modules['std:signalR'] = function () {
 	});
 })();
 
-// Copyright © 2023-2024 Oleksandr Kukhtin. All rights reserved.
+// Copyright © 2023-2025 Oleksandr Kukhtin. All rights reserved.
 
-/*20240403-8272*/
+/*20259225-8529*/
 
 /* tabbed:shell.js */
 (function () {
@@ -205,10 +201,25 @@ app.modules['std:signalR'] = function () {
 	const modalComponent = component('std:modal');
 	const toastrComponent = component('std:toastr');
 	const store = component('std:store');
+	const MAX_OPENED_TABS = 10;
 
 	let tabKey = 77;
-
+	
 	const tabUrlKey = tab => `${tab.url}:${tab.key}`;
+
+	function getClosestLi(ev) {
+		if (!ev.target) return null;
+		return ev.target.closest('li');
+	}
+
+	function intersectLines(t, c) {
+		let dx = 0;
+		if (t.r > c.r)
+			dx = c.r - t.l;
+		else if (t.l < c.l)
+			dx = t.r - c.l;
+		return dx > 0;
+	}
 
 	app.components["std:shellPlain"] = Vue.extend({
 		store,
@@ -217,6 +228,7 @@ app.modules['std:signalR'] = function () {
 				tabs: [],
 				closedTabs: [],
 				activeTab: null,
+				maxUsed: 0,
 				modals: [],
 				modalRequeryUrl: '',
 				traceEnabled: log.traceEnabled(),
@@ -227,11 +239,13 @@ app.modules['std:signalR'] = function () {
 				tabPopupOpen: false,
 				navigatingUrl: '',
 				homePageTitle: '',
+				homeRoot: null,
 				homeLoaded: false,
 				lockRoute: false,
 				requestsCount: 0,
 				contextTabKey: 0,
-				newVersionAvailable: false
+				newVersionAvailable: false,
+				movedTab: null
 			};
 		},
 		components: {
@@ -251,13 +265,20 @@ app.modules['std:signalR'] = function () {
 			maxTabWidth() { return `calc((100% - 50px) / ${this.tabs.length})`; }
 		},
 		methods: {
+			replaceState(tab) {
+				//??window.history.replaceState(null, null, tab ? tab.url : '/');
+			},
 			navigate(u1) {
+				if (u1.url.indexOf('{genrandom}') >= 0) {
+					let randomString = Math.random().toString(36).substring(2);
+					u1.url = u1.url.replace('{genrandom}', randomString);
+				}
 				let tab = this.tabs.find(tab => tab.url == u1.url);
 				if (!tab) {
 					let parentUrl = '';
 					if (this.activeTab)
 						parentUrl = this.activeTab.url || '';
-					tab = { title: u1.title, url: u1.url, query: u1.query || '', loaded: true, key: tabKey++, root: null, parentUrl: parentUrl, reload: 0, debug: false };
+					tab = { title: u1.title, url: u1.url, query: u1.query || '', cnt: 1, o: this.tabs.length + 1, loaded: true, key: tabKey++, root: null, parentUrl: parentUrl, reload: 0, debug: false };
 					this.tabs.push(tab);
 					var cti = this.closedTabs.findIndex(t => t.url === u1.url);
 					if (cti >= 0)
@@ -265,8 +286,14 @@ app.modules['std:signalR'] = function () {
 				}
 				tab.loaded = true;
 				this.activeTab = tab;
-				if (this.tabs.length > 10)
-					this.tabs.splice(0, 1);
+				this.useTab(tab);
+				if (this.tabs.length > MAX_OPENED_TABS) {
+					let mt = this.tabs.toSorted((a, b) => b.cnt - a.cnt);
+					if (mt.length) {
+						let ix = this.tabs.indexOf(mt[0]);
+						this.tabs.splice(ix, 1);
+					}
+				}
 				this.storeTabs();
 			},
 			navigateUrl(url) {
@@ -277,7 +304,7 @@ app.modules['std:signalR'] = function () {
 				this.navigatingUrl = to.url;
 				this.navigate({ url: to.url, title: '' });
 			},
-			dummy() {},
+			dummy() { },
 			reloadApplication() {
 				window.location.reload();
 			},
@@ -309,13 +336,15 @@ app.modules['std:signalR'] = function () {
 				if (page) {
 					let tab = this.activeTab || this.tabs.find(t => t.url == page.src);
 					if (tab) {
+						this.replaceState(tab);
 						tab.root = page.root;
 						document.title = tab.title;
 						if (page.root) {
 							page.root.__tabUrl__ = tabUrlKey(tab);
 							page.root.$store.commit('setroute', tab.url);
 						}
-					}
+					} else if (page.src === '/_home/index/0')
+						this.homeRoot = page.root;
 				}
 				this.navigatingUrl = '';
 			},
@@ -324,6 +353,9 @@ app.modules['std:signalR'] = function () {
 			},
 			isHomeActive() {
 				return !this.activeTab;
+			},
+			tabTooltip(tab) {
+				return `${tab.url}`;
 			},
 			fitText(t) {
 				if (!t) return 'untitled';
@@ -334,18 +366,24 @@ app.modules['std:signalR'] = function () {
 				if (tab.root && tab.root.$isDirty)
 					star = '* ';
 				return star + tab.title;
-				
+
 			},
 			tabSource(tab) {
-				return tab.loaded ? (tab.url  + (tab.query || '')) : null;
-			},		
+				return tab.loaded ? (tab.url + (tab.query || '')) : null;
+			},
 			homeSource() {
 				return this.homeLoaded ? '/_home/index/0' : null;
+			},
+			useTab(tab) {
+				this.tabs.filter(t => t != tab).forEach(t => t.cnt += 1);
+				tab.cnt = 1;
+				this.maxUsed = Math.max(...this.tabs.map(t => t.cnt));
 			},
 			selectHome(noStore) {
 				this.homeLoaded = true;
 				this.activeTab = null;
 				document.title = this.homePageTitle;
+				this.replaceState(null);
 				if (noStore)
 					return;
 				this.storeTabs();
@@ -357,8 +395,11 @@ app.modules['std:signalR'] = function () {
 					return;
 				}
 				tab.loaded = true;
+				if (this.activeTab != tab)
+					this.useTab(tab);
 				this.activeTab = tab;
 				document.title = tab.title;
+				this.replaceState(tab);
 				if (noStore)
 					return;
 				this.storeTabs();
@@ -394,7 +435,7 @@ app.modules['std:signalR'] = function () {
 					let rt = this.tabs.splice(ix, 1);
 					if (rt.length) {
 						this.closedTabs.unshift(rt[0]);
-						if (this.closedTabs.length > 10)
+						if (this.closedTabs.length > MAX_OPENED_TABS)
 							this.closedTabs.pop();
 					}
 				});
@@ -405,6 +446,7 @@ app.modules['std:signalR'] = function () {
 					if (this.activeTab !== currentTab)
 						this.selectTab(currentTab, true);
 				}
+				this._resortTabs();
 				this.storeTabs();
 			},
 			removeTab(tabIndex) {
@@ -412,18 +454,21 @@ app.modules['std:signalR'] = function () {
 				let parent = this.tabs.find(t => t.url === currentTab.parentUrl);
 				if (parent)
 					this.selectTab(parent, true);
-				else if (tabIndex > 0)
-					this.selectTab(this.tabs[tabIndex - 1], true);
-				else if (this.tabs.length > 1)
-					this.selectTab(this.tabs[tabIndex + 1], true);
-				else
-					this.selectHome(true);
+				if (this.isTabActive(currentTab)) {
+					if (tabIndex > 0)
+						this.selectTab(this.tabs[tabIndex - 1], true);
+					else if (this.tabs.length > 1)
+						this.selectTab(this.tabs[tabIndex + 1], true);
+					else
+						this.selectHome(true);
+				}
 				let rt = this.tabs.splice(tabIndex, 1);
 				if (rt.length) {
 					this.closedTabs.unshift(rt[0]);
-					if (this.closedTabs.length > 10)
+					if (this.closedTabs.length > MAX_OPENED_TABS)
 						this.closedTabs.pop();
 				}
+				this._resortTabs();
 				this.storeTabs();
 			},
 			clearLocalStorage() {
@@ -438,7 +483,8 @@ app.modules['std:signalR'] = function () {
 					keys.forEach(f => window.localStorage.removeItem(f));
 			},
 			storeTabs() {
-				var mapTab = (t) => { return { title: t.title, url: t.url, query: t.query || '', parentUrl: t.parentUrl }; };
+				this.maxUsed = Math.max(...this.tabs.map(t => t.cnt));
+				var mapTab = (t) => { return { title: t.title, url: t.url, cnt: t.cnt, query: t.query || '', parentUrl: t.parentUrl }; };
 				let ix = this.tabs.indexOf(this.activeTab);
 				let tabs = JSON.stringify({
 					index: ix,
@@ -447,7 +493,7 @@ app.modules['std:signalR'] = function () {
 				});
 				window.localStorage.setItem(this.storageKey, tabs);
 			},
-			restoreTabs() {
+			restoreTabs(path) {
 				let tabs = window.localStorage.getItem(this.storageKey);
 				if (!tabs) {
 					this.selectHome(true);
@@ -456,16 +502,20 @@ app.modules['std:signalR'] = function () {
 				try {
 					let elems = JSON.parse(tabs);
 					let ix = elems.index;
-					for (let i = 0; i < elems.tabs.length; i++) {
+					let len = elems.tabs.length;
+					for (let i = 0; i < len; i++) {
 						let t = elems.tabs[i];
 						let loaded = ix === i;
 						if (loaded)
 							this.navigatingUrl = t.url;
-						this.tabs.push({ title: t.title, url: t.url, query: t.query, loaded, key: tabKey++, root: null, parentUrl: t.parentUrl, reload: 0, debug: false });
+						this.tabs.push({
+							title: t.title, url: t.url, query: t.query,
+							cnt: t.cnt || len - i - 1, o: i + 1, loaded, key: tabKey++, root: null, parentUrl: t.parentUrl, reload: 0, debug: false
+						});
 					}
 					for (let i = 0; i < elems.closedTabs.length; i++) {
 						let t = elems.closedTabs[i];
-						this.closedTabs.push({ title: t.title, url: t.url, query: t.query, loaded: true, key: tabKey++ });
+						this.closedTabs.push({ title: t.title, url: t.url, query: t.query, cnt: 1, loaded: true, key: tabKey++ });
 					}
 					if (ix >= 0 && ix < this.tabs.length)
 						this.activeTab = this.tabs[ix];
@@ -473,6 +523,7 @@ app.modules['std:signalR'] = function () {
 						this.selectHome(true);
 				} catch (err) {
 				}
+				this.maxUsed = Math.max(...this.tabs.map(t => t.cnt));
 			},
 			toggleTabPopup() {
 				eventBus.$emit('closeAllPopups');
@@ -480,17 +531,21 @@ app.modules['std:signalR'] = function () {
 			},
 			// context menu
 			tabsContextMenu(ev) {
+				eventBus.$emit('closeAllPopups');
 				this.contextTabKey = 0;
 				let li = ev.target.closest('li');
 				if (li)
 					this.contextTabKey = +(li.getAttribute('tab-key') || 0);
 				let menu = document.querySelector('#ctx-tabs-popup');
 				let br = menu.parentNode.getBoundingClientRect();
+				let mw = 242; // menu width
+				let lp = ev.clientX - br.left;
+				if (lp + mw > br.right)
+					lp -= mw;
 				let style = menu.style;
 				style.top = (ev.clientY - br.top) + 'px';
-				style.left = (ev.clientX - br.left) + 'px';
+				style.left = lp + 'px';
 				menu.classList.add('show');
-				//console.dir(this.contextTabKey);
 			},
 			popupClose() {
 				let t = this.tabs.find(t => t.key === this.contextTabKey);
@@ -500,6 +555,140 @@ app.modules['std:signalR'] = function () {
 				if (this.closedTabs.length <= 0) return;
 				let t = this.closedTabs[0];
 				this.reopenTab(t);
+			},
+			_resortTabs() {
+				let arr = this.tabs;
+				arr.sort((a, b) => a.o - b.o);
+				for (let i = 0; i < arr.length; i++)
+					arr[i].o = i + 1;
+				this.storeTabs();
+			},
+			offsetLeft(t) {
+				let mt = this.movedTab;
+				if (!mt || mt.tab !== t)
+					return "0";
+				return mt.pos + 'px';
+			},
+			isDragged(t) {
+				let mt = this.movedTab;
+				return mt && mt.tab === t;
+			},
+			willClose(t) {
+				return this.tabs.length >= MAX_OPENED_TABS && t.cnt === this.maxUsed;
+			},
+			pointerDown(ev, t) {
+				let li = getClosestLi(ev)
+				if (!li) return;
+				ev.target.setPointerCapture(ev.pointerId);
+				let cr = li.getBoundingClientRect();
+				this.movedTab = { tab: t, x: ev.x - cr.left, l: cr.left, pos: 0 };
+				this._dragContext = { tabs: [], currentTab: -1, pointTab: -1, left: 0 };
+			},
+			pointerUp(ev, t) {
+				ev.target.releasePointerCapture(ev.pointerId);
+				this.movedTab = null;
+				this._dragContext = null;
+				this._resortTabs();
+			},
+			pointerMove(ev, t) {
+				let mt = this.movedTab
+				if (!mt) return;
+
+				let offset = ev.x - mt.l - mt.x;
+				mt.pos = offset;
+
+				let li = getClosestLi(ev)
+				if (!li)
+					return;
+				let cr = li.getBoundingClientRect();
+				let hw = cr.width / 4;
+
+				if (Math.abs(offset) < hw)
+					return;
+
+				this._createOrderedTabs();
+
+				let testTab = { l: ev.x - mt.x, r: ev.x - mt.x + cr.width };
+
+				if (!this._testOrderedTabs(testTab))
+					return;
+
+				let nl = this._swapOrderedTabs(testTab);
+				if (!nl) return;
+				//console.log('set nl:', nl.l, 'i:', nl.i);
+				mt.l = nl.l;
+				offset = ev.x - mt.l - mt.x;
+				mt.pos = offset;
+			},
+			_createOrderedTabs() {
+				if (!this._dragContext) return;
+				if (this._dragContext.tabs.length) return;
+				if (!this.tabs.length) return;
+
+				let findAttr = (t) => {
+					return this.$refs.tab.find(el => el.getAttribute('tab-key') == t.key);
+				};
+
+				let otabs = this.tabs.map((t, ix) => ({
+					tab: t,
+					ref: findAttr(t), w: 0,
+				}));
+				let hcr = this.$refs.home.getBoundingClientRect();
+				this._dragContext.left = hcr.right;
+				let l = hcr.right;
+				for (let i = 0; i < otabs.length; i++) {
+					let t = otabs[i];
+					if (t.tab === this.movedTab.tab)
+						this._dragContext.currentTab = i;
+					let cr = t.ref.getBoundingClientRect();
+					t.w = cr.width;
+					l += t.w;
+				}
+				this._dragContext.tabs = otabs;
+				return otabs;
+			},
+			_testOrderedTabs(testTab) {
+				if (!this.movedTab) return false;
+				let otabs = this._dragContext.tabs;
+				if (!otabs || !otabs.length) return false;
+				let l = this._dragContext.left;
+				for (let i = 0; i < otabs.length; i++) {
+					let t = otabs[i];
+					if (t.tab === this.movedTab.tab)
+						this._dragContext.currentTab = i;
+					if (intersectLines(testTab, { l, r: l + t.w })) {
+						this._dragContext.pointTab = i;
+					}
+					l += t.w;
+				}
+				return this._dragContext.currentTab != -1 &&
+					this._dragContext.pointTab != -1 &&
+					this._dragContext.currentTab != this._dragContext.pointTab;
+			},
+			_swapOrderedTabs(testTab) {
+				if (!this._dragContext) return;
+				let tabs = this._dragContext.tabs;
+				if (!tabs.length) return;
+				let tab1 = tabs[this._dragContext.currentTab];
+				let tab2 = tabs[this._dragContext.pointTab];
+				if (tab1 === tab2) return;
+				if (tab1.tab.o === tab2.tab.o)
+					return;
+				let tmp = tab1.tab.o;
+				tab1.tab.o = tab2.tab.o;
+				tab2.tab.o = tmp;
+				let l = this._dragContext.left;
+				let neo = tabs.toSorted((a, b) => a.tab.o - b.tab.o);
+				this._dragContext.tabs = neo;
+				for (let i = 0; i < neo.length; i++) {
+					let t = neo[i];
+					if (l >= testTab.l) { 
+						this._dragContext.pointTab = i;
+						return { l, i };
+					}
+					l += t.w;
+				}
+				return { l, i: neo.length }; 
 			},
 			popupCloseOther() {
 				if (!this.contextTabKey) return;
@@ -697,6 +886,8 @@ app.modules['std:signalR'] = function () {
 			updateModelStack(root) {
 				if (this.__dataStack__.length > 0 && this.__dataStack__[0] === root)
 					return;
+				if (!root || !root.$data)
+					return;
 				this.__dataStack__.splice(0);
 				this.__dataStack__.unshift(root);
 				this.dataCounter += 1; // refresh
@@ -723,6 +914,8 @@ app.modules['std:signalR'] = function () {
 			activeTab(newtab) {
 				if (newtab && newtab.root)
 					this.updateModelStack(newtab.root)
+				else
+					this.updateModelStack(this.homeRoot);
 			}
 		},
 		mounted() {
@@ -730,7 +923,10 @@ app.modules['std:signalR'] = function () {
 			// home page here this.tabs.push({})
 			this.$el._close = this.__clickOutside;
 			this.clearLocalStorage();
-			this.restoreTabs();
+			if (!this.menu || !this.menu.length)
+				this.selectHome(false); // store empty tabs
+			else
+				this.restoreTabs(window.location.pathname + window.location.search);
 		},
 		created() {
 			const me = this;
@@ -764,7 +960,7 @@ app.modules['std:signalR'] = function () {
 				window.__requestsCount__ = me.requestsCount;
 			});
 			eventBus.$on('checkVersion', (ver) => {
-				if (ver && this.appData && ver !== this.appData.version)
+				if (ver && this.appData && (ver.app !== this.appData.version || ver.module !== this.appData.moduleVersion))
 					this.newVersionAvailable = true;
 			});
 
@@ -782,6 +978,7 @@ app.modules['std:signalR'] = function () {
 })();
 
 // Copyright © 2024 Oleksandr Kukhtin. All rights reserved.
+
 (function () {
 
 	const TODAY_COLOR = "#fffff080"; // sync with LESS!
@@ -801,6 +998,7 @@ app.modules['std:signalR'] = function () {
 		<button class="btn btn-tb btn-icon" @click="nextPart(-1)"><i class="ico ico-arrow-left"></i></button>
 		<button class="btn btn-tb btn-icon" @click="nextPart(1)"><i class="ico ico-arrow-right"></i></button>
 		<button class="btn btn-tb btn-icon" @click="todayPart"><i class="ico ico-calendar-today"></i> <span v-text="locale.$Today"></span></button>
+		<slot name="leftbar"></slot>
 	</div>
 	<div class="title">
 		<span v-text=topTitle></span>

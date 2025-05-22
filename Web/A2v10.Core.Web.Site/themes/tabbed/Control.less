@@ -5,8 +5,6 @@
 
 @hover-color: var(--neutral100);
 
-@control-disabled-opacity: .85;
-
 @validator-arrow-size: 8px;
 
 // shadow
@@ -41,15 +39,23 @@
 
 .a2-hyperlink {
 	display: inline-flex;
-	gap: .5rem;
-	align-items:baseline;
+	gap: 4px;
+	align-items: baseline;
+
+	.ico {
+		padding: 0 !important;
+	}
 
 	&:focus, &:active {
 		outline: thin dotted #ccc;
 	}
 
 	&.a2-inline {
-		display:inline-flex;
+		display: inline-flex;
+	}
+
+	&.rendershow {
+		pointer-events:all;
 	}
 }
 
@@ -363,6 +369,13 @@
 		font-size: .9rem;
 	}
 
+	&.has-value {
+		.input-group {
+			background-color:#f0f7fc;
+			font-weight:500;
+		}
+	}
+
 	&.no-border {
 		.input-group {
 			border: none;
@@ -528,9 +541,17 @@
 }
 
 .control-group.disabled {
+	
+	&:not(.rendershow) {
+		pointer-events: none;
+	}
+
 	.input-group {
 		background-color: @disabled-bg-color;
-		opacity: @control-disabled-opacity;
+
+		input[readonly], textarea[readonly] {
+			pointer-events:auto;
+		}
 	}
 
 	a:not(.rendershow) {
@@ -631,7 +652,7 @@
 	}
 
 	&.lg {
-		font-size:1rem;
+		font-size:1.2em;
 	}
 }
 

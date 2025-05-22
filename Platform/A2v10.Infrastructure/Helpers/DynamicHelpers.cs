@@ -25,7 +25,7 @@ public static partial class DynamicHelpers
 		return default;
 	}
 
-	public static T GetNotNull<T>(this ExpandoObject obj, String name)
+    public static T GetNotNull<T>(this ExpandoObject obj, String name)
 	{
 		if (obj is not IDictionary<String, Object?> d)
 			throw new KeyNotFoundException(name);

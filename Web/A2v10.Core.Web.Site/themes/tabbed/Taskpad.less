@@ -2,7 +2,7 @@
 @import "Variables.less";
 
 @taskpad-collapsed-bg-color: var(--bgPrimary);
-@taskpad-collapsed-width: 36px; /*see: taskpad.js*/
+@taskpad-collapsed-width: 36px;
 
 @handle-size: 26px;
 
@@ -13,6 +13,10 @@
 	.taskpad-body {
 		overflow: auto;
 		height: 100%;
+	}
+
+	.panel-content > .grid {
+		padding: 0;
 	}
 
 	&.overflow {
@@ -28,16 +32,16 @@
 		width: @handle-size;
 		height: @handle-size;
 		color: @link-color;
-		border: 1px solid @control-brd-color;
+		border: 1px solid var(--neutral100);
 		border-radius: @control-brd-radius;
-		background-color: white;
+		background-color: var(--nav100);
 		text-align: center;
 		line-height: (@handle-size - 2);
 		z-index: 20;
 		text-decoration: none;
 
 		&:hover {
-			background-color: @taskpad-collapsed-bg-color;
+			background-color: var(--nav300);
 		}
 	}
 
@@ -74,6 +78,8 @@
 
 	&.collapsed {
 		background-color: @taskpad-collapsed-bg-color;
+		width: @taskpad-collapsed-width;
+		padding: 0 !important;
 
 		.taskpad-collapse-handle {
 			&:before {
@@ -88,19 +94,19 @@
 		height: 100%;
 		cursor: pointer;
 		font-size: 16px;
-		color: var(--neutral500);
-		position:absolute;
-		top:0;
-		left:0;
-		width:100%;
-		height:100%;
-		padding-left:31px;
+		color: var(--text-label);
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		padding-left: 31px;
 
 		.taskpad-label {
 			display: block;
 			transform: rotate(90deg);
 			transform-origin: top left;
-			padding-left:46px;
+			padding-left: 46px;
 		}
 	}
 }
@@ -122,7 +128,7 @@
 
 	&.collapsed {
 		padding:0!important;
-		width:auto!important;
+
 		.taskpad-collapse-handle {
 			&:before {
 				content: "\e9a3"; // chevron-left

@@ -1,8 +1,8 @@
 ﻿/*
 Copyright © 2008-2024 Oleksandr Kukhtin
 
-Last updated : 08 jun 2024
-module version : 8301
+Last updated : 23 aug 2024
+module version : 8339
 */
 ------------------------------------------------
 drop procedure if exists a2ui.[Menu.Merge];
@@ -23,7 +23,6 @@ create type a2ui.[Menu.TableType] as table
 	IsDevelopment bit
 );
 go
-
 ------------------------------------------------
 create or alter procedure a2ui.[Menu.Merge]
 @TenantId int,
@@ -49,14 +48,14 @@ begin
 		t.[Order] = s.[Order],
 		t.ClassName = s.ClassName,
 		t.CreateUrl= s.CreateUrl,
-		t.CreateName = s.CreateName
-	when not matched by target then insert(Module, Tenant, Id, Parent, [Name], [Url], Icon, [Order], ClassName, CreateUrl, CreateName) values 
-		(@ModuleId, @TenantId, Id, Parent, [Name], [Url], Icon, [Order], ClassName, CreateUrl, CreateName)
+		t.CreateName = s.CreateName,
+		t.IsDevelopment = isnull(s.IsDevelopment, 0)
+	when not matched by target then insert(Module, Tenant, Id, Parent, [Name], [Url], Icon, [Order], ClassName, CreateUrl, CreateName, IsDevelopment) values 
+		(@ModuleId, @TenantId, Id, Parent, [Name], [Url], Icon, [Order], ClassName, CreateUrl, CreateName, isnull(IsDevelopment, 0))
 	when not matched by source and t.Tenant = @TenantId and t.Module = @ModuleId then
 		delete;
 end
 go
-
 ------------------------------------------------
 create or alter procedure a2ui.[Menu.User.Load]
 @TenantId int = 1,
@@ -86,7 +85,7 @@ begin
 		m.[Name], m.Url, m.Icon, m.ClassName, m.CreateUrl, m.CreateName
 	from RT 
 		inner join a2ui.Menu m on m.Tenant = @TenantId and RT.Id=m.Id
-	where IsDevelopment = 0 or IsDevelopment = @isDevelopment
+	where IsDevelopment = 0 or IsDevelopment is null or IsDevelopment = @isDevelopment
 	order by RT.[Level], m.[Order], RT.[Id];
 
 	-- system parameters

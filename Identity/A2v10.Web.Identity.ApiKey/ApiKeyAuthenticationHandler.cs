@@ -20,40 +20,16 @@ using A2v10.Identity.Core;
 
 namespace A2v10.Web.Identity.ApiKey;
 
-public class ApiKeyAuthenticationHandler<T> : AuthenticationHandler<ApiKeyAuthenticationOptions>
+public class ApiKeyAuthenticationHandler<T>(IOptionsMonitor<ApiKeyAuthenticationOptions> _options, ILoggerFactory _logger, UrlEncoder _encoder,
+    IUserLoginStore<AppUser<T>> _userStore, IUserClaimStore<AppUser<T>> _claimStore, IOptions<ApiKeyConfigurationOptions> _configOptions) 
+		: AuthenticationHandler<ApiKeyAuthenticationOptions>(_options, _logger, _encoder)
 		where T : struct
 {
-	private readonly IUserLoginStore<AppUser<T>> _userLoginStore;
-	private readonly IUserClaimStore<AppUser<T>> _userClaimStore;
-	private readonly ApiKeyConfigurationOptions _configOptions;
+    private readonly ApiKeyConfigurationOptions _configOptions = _configOptions.Value;
 
 	private const String ProviderName = "ApiKey";
 
-#if NET8_0_OR_GREATER
-#pragma warning disable IDE0290 // Use primary constructor
-    public ApiKeyAuthenticationHandler(IOptionsMonitor<ApiKeyAuthenticationOptions> options, ILoggerFactory logger, UrlEncoder encoder,
-#pragma warning restore IDE0290 // Use primary constructor
-        IUserLoginStore<AppUser<T>> userStore, IUserClaimStore<AppUser<T>> claimStore, IOptions<ApiKeyConfigurationOptions> configOptions)
-        : base(options, logger, encoder)
-    {
-        _userLoginStore = userStore;
-        _userClaimStore = claimStore;
-		_configOptions = configOptions.Value;
-    }
-#else
-#pragma warning disable IDE0290 // Use primary constructor
-	public ApiKeyAuthenticationHandler(IOptionsMonitor<ApiKeyAuthenticationOptions> options, ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock,
-#pragma warning restore IDE0290 // Use primary constructor
-		IUserLoginStore<AppUser<T>> userStore, IUserClaimStore<AppUser<T>> claimStore, IOptions<ApiKeyConfigurationOptions> configOptions)
-		: base(options, logger, encoder, clock)
-	{
-		_userLoginStore = userStore;
-		_userClaimStore = claimStore;
-		_configOptions = configOptions.Value;
-	}
-#endif
-
-	protected async override Task<AuthenticateResult> HandleAuthenticateAsync()
+    protected async override Task<AuthenticateResult> HandleAuthenticateAsync()
 	{
 		if (!Request.Headers.TryGetValue(ApiKeyAuthenticationOptions.HeaderName, out var apiKeyHeaderValues))
 			return AuthenticateResult.NoResult();
@@ -65,13 +41,13 @@ public class ApiKeyAuthenticationHandler<T> : AuthenticationHandler<ApiKeyAuthen
 
 		var appUser = _configOptions.KeyType switch
 		{
-			KeyType.ApiKey => await _userLoginStore.FindByLoginAsync(ProviderName, apiKey, CancellationToken.None),
-			KeyType.EncodedClaims => await GetApiUserFromClaims(apiKey),
+			KeyType.ApiKey => await _userStore.FindByLoginAsync(ProviderName, apiKey, CancellationToken.None),
+			KeyType.EncodedClaims => await GetApiUserFromClaimsAsync(apiKey),
 			_ => throw new InvalidOperationException("Yet not implemented")
 		};
 		if (appUser == null || appUser.IsEmpty)
 			return AuthenticateResult.NoResult();
-		var claims = await _userClaimStore.GetClaimsAsync(appUser, CancellationToken.None);
+		var claims = await _claimStore.GetClaimsAsync(appUser, CancellationToken.None);
 		// ID is required
 		claims.Add(new Claim(WellKnownClaims.NameIdentifier, appUser.Id.ToString()!));
 
@@ -84,14 +60,14 @@ public class ApiKeyAuthenticationHandler<T> : AuthenticationHandler<ApiKeyAuthen
 		return AuthenticateResult.Success(ticket);
 	}
 
-	private async Task<AppUser<T>?> GetApiUserFromClaims(String apiKey)
+	private async Task<AppUser<T>?> GetApiUserFromClaimsAsync(String apiKey)
 	{
 		var user = ApiKeyUserHelper<T>.GetUserFromApiKey(apiKey, _configOptions.AesEncryptKey, _configOptions.AesEncryptVector);
 		if (user == null)
 			return null;
 		if (_configOptions.SkipCheckUser)
 			return user;
-		var userFromDb = await _userLoginStore.FindByLoginAsync(ProviderName, apiKey, CancellationToken.None);
+		var userFromDb = await _userStore.FindByLoginAsync(ProviderName, apiKey, CancellationToken.None);
 		if (userFromDb == null)
 			return null;
 		if (!Equals(userFromDb.Id, user.Id))

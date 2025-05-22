@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2023 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
 
 
 using A2v10.Infrastructure;
@@ -49,6 +49,7 @@ public class Popover : Inline
     public Length? Top { get; set; }
 
     public String? Url { get; set; }
+    public Object? Argument { get; set; }
     public Length? OffsetX { get; set; }
 
     public PopoverUnderlineMode Underline { get; set; }
@@ -91,6 +92,12 @@ public class Popover : Inline
         else if (!String.IsNullOrEmpty(Url))
             po.MergeAttribute("url", Url);
 
+        var arg = GetBinding(nameof(Argument));
+        if (arg != null)
+            po.MergeAttribute(":arg", arg.GetPathFormat(context));
+        else if (Argument != null)
+            po.MergeAttribute("arg", Argument.ToString());
+
         if (Width != null)
             po.MergeAttribute("width", Width.Value);
 
@@ -103,7 +110,7 @@ public class Popover : Inline
         {
             var cont = new TagBuilder("span");
             cont.MergeAttribute("v-text", cntBind.GetPathFormat(context));
-            cont.Render(context);
+			cont.Render(context);
         }
         else if (Content is UIElementBase uiElemBase)
         {
@@ -134,6 +141,8 @@ public class Popover : Inline
         base.OnEndInit();
         if (Background == PopoverBackgroundStyle.Yellow)
             Background = PopoverBackgroundStyle.Default;
+        if (Content is XamlElement xamlElem)
+            xamlElem.SetParent(this);
     }
 }
 

@@ -1,7 +1,7 @@
 ﻿
 @import "colors.less";
 
-@font-family: system, 'Segoe UI', Tahoma, Verdana, sans-serif;
+@font-family: system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 @monospace-font: Consolas, 'Courier New', Courier, monospace;
 @font-size: var(--fontSize);
 
@@ -23,36 +23,23 @@
 @hover-bg-light: var(--neutral50);
 @light-yellow-bg-color:#fffff0;
 
-@page-wrapper-bg-color:#e3e3e3;
+@page-wrapper-bg-color:var(--neutral400);
 
 @dark-bk-color: #8591a2;
 @menu-bk-color: #9ab3e0;
 @a2v10-brand-color:#dd2c5e;
 
-@brand-hover-color: ~ "var(--themeDarker)";
+@brand-hover-color: #af1d46;
 @hover-bg-color: @menu-hover-color; // var(--hoverBk);
 @active-bg-color: var(--activeBk);
 @hover-bg-color-light: @menu-hover-color; //var(--hoverBkLight);
 @active-bg-color-light: var(--activeBkLight);
 
-@alter-bg-color: rgba(224, 224, 224, .1);
-@link-color: var(--link); // var(--themeDark);//#208cf8; //#57a8fa;
+@alter-bg-color: hsl(from var(--neutral300) h s l / 10%);
+@link-color: var(--link); // //#208cf8; //#57a8fa;
 //@link-hover-color: darken(@link-color, 15%);
 @link-hover-color: var(--linkDark);
-@link-hover-color-dark: @link-hover-color; //~"var(--themeDarker)"; //darken(@link-color, 10%);
-@warning-base-color: #ffb74d;
-@danger-base-color: #da533f;
-@success-base-color: #5db750;
-@info-base-color: #60bbe5;
-//@primary-base-color: #5f8ce0;
-@primary-base-color: #3470b4;
-
-@warning-base-color_opacity: #ffb74d42;
-@danger-base-color_opacity: #da533f42;
-@success-base-color_opacity: #5db75042;
-@info-base-color_opacity: #60bbe542;
-//@primary-base-color: #5f8ce0;
-@primary-base-color_opacity: #3470b442;
+@link-hover-color-dark: @link-hover-color;
 
 @font-bold: 500;
 
@@ -71,7 +58,7 @@
 
 //@control-height: 1.851em; // FF magic number ???
 //@control-height:1.6158em;
-@control-height:2em;
+@control-height: 2em;
 @input-padding: 5px;
 @select-padding: 2px;
 @placeholder-color: @gray-text-color;
@@ -90,11 +77,7 @@
 @footer-bg-color: var(--neutralBk);
 
 // nav bar 
-@navbar-height: 32px;
 @navbar-bg-color: var(--neutralBk);
-@navbar-bg-color-dark: var(--neutralBkDark);
-@navbar-highlight-color: @navbar-bg-color-dark;
-@navbar-link-color: var(--themeDarker);
 
 @progress-bar-height:4px;
 @progress-bar-color: gold;
@@ -117,7 +100,7 @@
 
 // data grid 
 @data-grid-border-color:@default-brd-color;
-@sort-bg-color: rgba(238,238,238, 0.25);
+@sort-bg-color: var(--table-header-sort);
 
 // toolbar 
 @tb-active-bg-color: #fff29d;
@@ -219,10 +202,6 @@
 @arrow-gap: 6px;
 
 @dropdown-shadow: 3px 3px 10px 0 rgba(174, 174, 174, .5), 0 5px 40px 0 rgba(0, 0, 0, .15);
-
-
-@menu-separator-gap: 8px;
-@menu-separator-color: var(--neutralBkDarker);
 
 
 // marker 

@@ -1,4 +1,4 @@
-﻿// Copyright © 2015-2024 Oleksandr Kukhtin. All rights reserved.
+﻿// Copyright © 2015-2025 Oleksandr Kukhtin. All rights reserved.
 
 using System;
 using System.Collections.Generic;
@@ -18,6 +18,30 @@ public enum AutoRender
 public interface IModelJsonAuto
 {
 	public AutoRender Render { get; }
+}
+
+public interface IModelJsonMeta
+{
+	public String Table { get; }
+	public String Schema { get; }
+}
+
+public enum MetaEditMode
+{
+	Default,
+	Dialog,
+	Page
+}
+public interface IModelBaseMeta
+{
+	public String? Table { get; }
+	public String? Schema { get; }
+	public MetaEditMode Edit { get; }
+
+    // calculated	
+    public String CurrentTable { get; }
+    public String CurrentSchema { get; }
+    public MetaEditMode EditMode {get;}
 }
 
 // as model.json.schema
@@ -57,9 +81,11 @@ public interface IModelBase
 	String Path { get; }
 	String BaseUrl { get; }
 	Int32 CommandTimeout { get; }
-	IModelJsonAuto? ModelAuto { get; }
+	IModelJsonAuto? Auto { get; }
+    IModelBaseMeta? Meta { get; }
 	ExpandoObject CreateParameters(IPlatformUrl url, Object? id, Action<ExpandoObject>? setParams = null, ParametersFlags flags = ParametersFlags.None);
 	Dictionary<String, PermissionBits>? Permissions { get; }
+	Boolean HasMetadata => Auto != null || Meta != null;
 }
 
 public enum ModelBlobType
@@ -69,7 +95,8 @@ public enum ModelBlobType
 	clr,
 	parse,
 	blobStorage,
-	excel
+	excel,
+	text
 }
 
 public enum ModelParseType
